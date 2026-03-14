@@ -241,6 +241,12 @@ function fromBase64(input: string): Uint8Array {
   return bytes;
 }
 
+function toCryptoBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function omitSignature(event: InboundEventRequest): Omit<InboundEventRequest, "signature"> {
   const { signature: _signature, ...rest } = event;
   return rest;
@@ -253,7 +259,7 @@ export function canonicalizeInboundEvent(event: InboundEventRequest): string {
 async function importPrivateKeyFromDer(base64Der: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "pkcs8",
-    fromBase64(base64Der),
+    toCryptoBuffer(fromBase64(base64Der)),
     { name: "Ed25519" },
     false,
     ["sign"]
@@ -263,7 +269,7 @@ async function importPrivateKeyFromDer(base64Der: string): Promise<CryptoKey> {
 async function importPublicKeyFromDer(base64Der: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "spki",
-    fromBase64(base64Der),
+    toCryptoBuffer(fromBase64(base64Der)),
     { name: "Ed25519" },
     false,
     ["verify"]
@@ -279,7 +285,7 @@ export async function signInboundEvent(
     ...unsignedEvent,
     signature: ""
   });
-  const signature = await crypto.subtle.sign("Ed25519", key, textEncoder.encode(payload));
+  const signature = await crypto.subtle.sign("Ed25519", key, toCryptoBuffer(textEncoder.encode(payload)));
   return {
     ...unsignedEvent,
     signature: toBase64(signature)
@@ -295,8 +301,8 @@ export async function verifyDetachedSignature(
   return crypto.subtle.verify(
     "Ed25519",
     key,
-    fromBase64(signatureBase64),
-    textEncoder.encode(payload)
+    toCryptoBuffer(fromBase64(signatureBase64)),
+    toCryptoBuffer(textEncoder.encode(payload))
   );
 }
 
@@ -454,4 +460,3 @@ export function buildHostedControlEvent(
 export function decodeBase64(input: string): string {
   return textDecoder.decode(fromBase64(input));
 }
-

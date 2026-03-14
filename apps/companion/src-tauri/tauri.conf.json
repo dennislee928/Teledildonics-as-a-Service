@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TaaS Companion",
+  "version": "0.1.0",
+  "identifier": "com.taas.companion",
+  "build": {
+    "frontendDist": "../app"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TaaS Companion",
+        "width": 1100,
+        "height": 760
+      }
+    ]
+  },
+  "bundle": {
+    "active": false
+  }
+}
+

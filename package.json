@@ -17,8 +17,8 @@
     "dev:hosted-control": "npm run build --workspace @taas/domain-sdk && npm run build --workspace @taas/embed-sdk && python3 -m http.server 4174 -d apps/hosted-control"
   },
   "devDependencies": {
+    "@types/node": "^24.0.1",
     "esbuild": "^0.25.1",
     "typescript": "^5.8.2"
   }
 }
-

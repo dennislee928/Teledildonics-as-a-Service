@@ -60,6 +60,10 @@ function render(): void {
               <option value="rotate">rotate</option>
             </select>
           </label>
+          <label>
+            Pairing max intensity
+            <input id="pairing-max-intensity" type="number" value="88" />
+          </label>
           <div class="button-row">
             <button id="pair-button">Pair bridge</button>
           </div>
@@ -121,7 +125,7 @@ function render(): void {
         <article class="card">
           <span class="kicker">Telemetry Stream</span>
           <h2>Signed command health</h2>
-          <p>Server signing public key:</p>
+          <p>Development endpoint public key:</p>
           <pre>${DEV_ENDPOINT_PUBLIC_KEY_DER_BASE64}</pre>
           <pre id="telemetry-log" class="telemetry-log">Waiting for telemetry...</pre>
         </article>
@@ -143,7 +147,7 @@ function render(): void {
         transport_public_key: (document.querySelector<HTMLInputElement>("#transport-key")!).value,
         device_name: (document.querySelector<HTMLInputElement>("#device-name")!).value,
         capability: (document.querySelector<HTMLSelectElement>("#capability")!).value as "vibrate" | "oscillate" | "rotate",
-        max_intensity: Number((document.querySelector<HTMLInputElement>("#max-intensity")?.value) ?? "88")
+        max_intensity: Number((document.querySelector<HTMLInputElement>("#pairing-max-intensity")?.value) ?? "88")
       });
       appendLog(pairingLog, pairing);
     } catch (error) {
@@ -226,4 +230,3 @@ function render(): void {
 }
 
 render();
-

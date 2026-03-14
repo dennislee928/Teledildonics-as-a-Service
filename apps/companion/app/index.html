@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaaS Companion</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "SF Pro Display", "Segoe UI", sans-serif;
+        --bg: #0d1117;
+        --panel: rgba(22, 27, 34, 0.86);
+        --ink: #f0f6fc;
+        --muted: #8b949e;
+        --accent: #4cc9a6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(76, 201, 166, 0.18), transparent 30%),
+          linear-gradient(180deg, #0b0f15, #0f1722);
+        color: var(--ink);
+        display: grid;
+        place-items: center;
+      }
+
+      main {
+        width: min(720px, 92vw);
+        padding: 28px;
+        border-radius: 28px;
+        border: 1px solid rgba(240, 246, 252, 0.08);
+        background: var(--panel);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #08211a;
+        padding: 12px 18px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      pre {
+        background: rgba(9, 12, 16, 0.92);
+        border-radius: 18px;
+        padding: 18px;
+        min-height: 180px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Tauri v2 shell for the creator-side companion runtime.</p>
+      <h1>Secure local bridge, explicit stop-all defaults.</h1>
+      <div style="display:flex; gap:12px; margin:20px 0 18px;">
+        <button id="bootstrap">Bootstrap runtime</button>
+        <button id="panic-stop">Panic stop</button>
+      </div>
+      <pre id="log">Companion runtime idle.</pre>
+    </main>
+
+    <script>
+      const log = document.getElementById("log");
+      async function invoke(command) {
+        if (!window.__TAURI__?.core?.invoke) {
+          log.textContent = "Open this page inside the Tauri shell to use commands.";
+          return;
+        }
+        const result = await window.__TAURI__.core.invoke(command);
+        log.textContent = JSON.stringify(result, null, 2);
+      }
+      document.getElementById("bootstrap").addEventListener("click", () => invoke("bootstrap_runtime"));
+      document.getElementById("panic-stop").addEventListener("click", () => invoke("panic_stop"));
+    </script>
+  </body>
+</html>
+

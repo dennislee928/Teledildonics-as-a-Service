@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "crates/companion-core",
+  "apps/companion/src-tauri"
+]
+resolver = "2"
+
