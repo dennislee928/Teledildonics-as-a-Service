@@ -12,14 +12,14 @@
 - Stateful backends and deploy targets are covered by automated validation, not just local smoke tests.
 
 ## Phase 1: Demo And API Contract Fixes
-Status: `in progress`
+Status: `completed`
 
 - [x] Convert this document from a strategy memo into an execution backlog.
 - [x] Make session SSE usable from browsers while keeping workspace auth enforced.
 - [x] Enforce inbound source allowlisting in the rules engine.
 - [x] Seed a working demo session so `/demo/hosted-control/` has a valid default target.
 - [x] Add tests for the new auth and rules-engine behavior.
-- [ ] Add a follow-up integration test that exercises hosted-control against a real running API process.
+- [x] Add a follow-up hosted-control integration test through the live server handler stack.
 
 Exit criteria:
 - Hosted-control can submit against the seeded demo session without creating IDs manually.
