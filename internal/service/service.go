@@ -25,6 +25,7 @@ const (
 )
 
 const DevEndpointPublicKeySPKI = "MCowBQYDK2VwAyEActLEH8a4hP3A+lSi7xev4ifQuTsuEij9axOUqWioz5A="
+const DevWorkspaceAPIKey = "taas_demo_workspace_key"
 
 type Metrics struct {
 	mu                sync.Mutex
@@ -81,7 +82,8 @@ func (m *Metrics) Snapshot() domain.MetricsSnapshot {
 }
 
 type ControlService struct {
-	store   *store.MemoryStore
+	repo    store.Repository
+	runtime store.RuntimeStore
 	relay   relay.Relay
 	secure  *secure.Engine
 	metrics *Metrics
@@ -89,9 +91,10 @@ type ControlService struct {
 	idSeq   atomic.Int64
 }
 
-func NewControlService(store *store.MemoryStore, relay relay.Relay, secure *secure.Engine, metrics *Metrics) *ControlService {
+func NewControlService(repo store.Repository, runtime store.RuntimeStore, relay relay.Relay, secure *secure.Engine, metrics *Metrics) *ControlService {
 	return &ControlService{
-		store:   store,
+		repo:    repo,
+		runtime: runtime,
 		relay:   relay,
 		secure:  secure,
 		metrics: metrics,
@@ -107,68 +110,74 @@ func (s *ControlService) SeedDemoData() error {
 	if err != nil {
 		return err
 	}
-	s.store.Seed(
-		domain.Workspace{
-			ID:        demoWorkspaceID,
-			Name:      "TaaS Demo Workspace",
-			Region:    "global-dev",
-			CreatedAt: now,
-		},
-		domain.Creator{
-			ID:          demoCreatorID,
-			WorkspaceID: demoWorkspaceID,
-			DisplayName: "Creator Zero",
-			CreatedAt:   now,
-		},
-		domain.DeviceBridge{
-			ID:                   demoBridgeID,
-			WorkspaceID:          demoWorkspaceID,
-			CreatorID:            demoCreatorID,
-			Transport:            domain.TransportCloudflareRealtime,
-			Status:               "online",
-			FallbackWebSocketURL: "wss://localhost:8080/ws/fallback",
-			PublicKey:            DevEndpointPublicKeySPKI,
-			TransportPublicKey:   "",
-			CreatedAt:            now,
-			LastSeenAt:           now,
-			WrappedSessionKey:    sessionKey,
-		},
-		domain.Device{
-			ID:           demoDeviceID,
-			BridgeID:     demoBridgeID,
-			CreatorID:    demoCreatorID,
-			Name:         "Loveseat Pulse",
-			Capability:   domain.CapabilityVibrate,
-			MaxIntensity: 88,
-			Connected:    true,
-			UpdatedAt:    now,
-		},
-		domain.RuleSet{
-			ID:                 demoRuleSetID,
-			WorkspaceID:        demoWorkspaceID,
-			CreatorID:          demoCreatorID,
-			AmountStepCents:    200,
-			IntensityStep:      14,
-			MaxIntensity:       88,
-			DurationPerStepMS:  2800,
-			MaxDurationMS:      12000,
-			CooldownMS:         750,
-			RateLimitPerMinute: 45,
-			PatternID:          "pulse-wave",
-			Enabled:            true,
-			UpdatedAt:          now,
-		},
-		domain.InboundEndpoint{
-			ID:             "endpoint_demo",
-			WorkspaceID:    demoWorkspaceID,
-			CreatorID:      demoCreatorID,
-			PublicKeySPKI:  DevEndpointPublicKeySPKI,
-			Active:         true,
-			CreatedAt:      now,
-			RotatedAt:      now,
-			AllowedSources: []string{"hosted-control", "session_demo"},
-		},
-	)
+	s.repo.UpsertWorkspace(domain.Workspace{
+		ID:        demoWorkspaceID,
+		Name:      "TaaS Demo Workspace",
+		Region:    "global-dev",
+		CreatedAt: now,
+	})
+	s.repo.UpsertCreator(domain.Creator{
+		ID:          demoCreatorID,
+		WorkspaceID: demoWorkspaceID,
+		DisplayName: "Creator Zero",
+		CreatedAt:   now,
+	})
+	s.repo.UpsertBridge(domain.DeviceBridge{
+		ID:                   demoBridgeID,
+		WorkspaceID:          demoWorkspaceID,
+		CreatorID:            demoCreatorID,
+		Transport:            domain.TransportCloudflareRealtime,
+		Status:               "online",
+		FallbackWebSocketURL: "wss://localhost:8080/ws/fallback",
+		PublicKey:            DevEndpointPublicKeySPKI,
+		TransportPublicKey:   "",
+		CreatedAt:            now,
+		LastSeenAt:           now,
+		WrappedSessionKey:    sessionKey,
+	})
+	s.repo.UpsertDevice(domain.Device{
+		ID:           demoDeviceID,
+		BridgeID:     demoBridgeID,
+		CreatorID:    demoCreatorID,
+		Name:         "Loveseat Pulse",
+		Capability:   domain.CapabilityVibrate,
+		MaxIntensity: 88,
+		Connected:    true,
+		UpdatedAt:    now,
+	})
+	s.repo.UpsertRuleSet(domain.RuleSet{
+		ID:                 demoRuleSetID,
+		WorkspaceID:        demoWorkspaceID,
+		CreatorID:          demoCreatorID,
+		AmountStepCents:    200,
+		IntensityStep:      14,
+		MaxIntensity:       88,
+		DurationPerStepMS:  2800,
+		MaxDurationMS:      12000,
+		CooldownMS:         750,
+		RateLimitPerMinute: 45,
+		PatternID:          "pulse-wave",
+		Enabled:            true,
+		UpdatedAt:          now,
+	})
+	s.repo.UpsertEndpoint(domain.InboundEndpoint{
+		ID:             "endpoint_demo",
+		WorkspaceID:    demoWorkspaceID,
+		CreatorID:      demoCreatorID,
+		PublicKeySPKI:  DevEndpointPublicKeySPKI,
+		Active:         true,
+		CreatedAt:      now,
+		RotatedAt:      now,
+		AllowedSources: []string{"hosted-control", "session_demo"},
+	})
+	s.repo.PutWorkspaceAPIKey(domain.WorkspaceAPIKey{
+		ID:          "key_demo",
+		WorkspaceID: demoWorkspaceID,
+		Label:       "demo local development key",
+		KeyPrefix:   "taas_demo",
+		KeyHash:     store.HashWorkspaceAPIKey(DevWorkspaceAPIKey),
+		CreatedAt:   now,
+	})
 	return nil
 }
 
@@ -180,10 +189,10 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 	if request.WorkspaceID == "" || request.CreatorID == "" || request.TransportPublicKey == "" || request.DeviceName == "" {
 		return domain.PairDeviceBridgeResponse{}, errors.New("workspace_id, creator_id, transport_public_key, and device_name are required")
 	}
-	if _, err := s.store.GetWorkspace(request.WorkspaceID); err != nil {
+	if _, err := s.repo.GetWorkspace(request.WorkspaceID); err != nil {
 		return domain.PairDeviceBridgeResponse{}, err
 	}
-	if _, err := s.store.GetCreator(request.CreatorID); err != nil {
+	if _, err := s.repo.GetCreator(request.CreatorID); err != nil {
 		return domain.PairDeviceBridgeResponse{}, err
 	}
 	now := s.now()
@@ -230,9 +239,9 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 		Connected:    true,
 		UpdatedAt:    now,
 	}
-	s.store.UpsertBridge(bridge)
-	s.store.UpsertDevice(device)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.UpsertBridge(bridge)
+	s.repo.UpsertDevice(device)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: request.WorkspaceID,
 		CreatorID:   request.CreatorID,
@@ -253,16 +262,16 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 }
 
 func (s *ControlService) CreateSession(_ context.Context, request domain.CreateSessionRequest) (domain.Session, error) {
-	if _, err := s.store.GetWorkspace(request.WorkspaceID); err != nil {
+	if _, err := s.repo.GetWorkspace(request.WorkspaceID); err != nil {
 		return domain.Session{}, err
 	}
-	if _, err := s.store.GetCreator(request.CreatorID); err != nil {
+	if _, err := s.repo.GetCreator(request.CreatorID); err != nil {
 		return domain.Session{}, err
 	}
-	if _, err := s.store.GetDevice(request.DeviceID); err != nil {
+	if _, err := s.repo.GetDevice(request.DeviceID); err != nil {
 		return domain.Session{}, err
 	}
-	if _, err := s.store.GetRuleSet(request.RuleSetID); err != nil {
+	if _, err := s.repo.GetRuleSet(request.RuleSetID); err != nil {
 		return domain.Session{}, err
 	}
 	now := s.now()
@@ -279,8 +288,8 @@ func (s *ControlService) CreateSession(_ context.Context, request domain.CreateS
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	s.store.CreateSession(session)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.CreateSession(session)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -297,11 +306,11 @@ func (s *ControlService) CreateSession(_ context.Context, request domain.CreateS
 }
 
 func (s *ControlService) ArmSession(_ context.Context, sessionID string, request domain.ArmSessionRequest) (domain.Session, error) {
-	session, err := s.store.GetSession(sessionID)
+	session, err := s.repo.GetSession(sessionID)
 	if err != nil {
 		return domain.Session{}, err
 	}
-	bridge, err := s.store.GetBridge(request.BridgeID)
+	bridge, err := s.repo.GetBridge(request.BridgeID)
 	if err != nil {
 		return domain.Session{}, err
 	}
@@ -311,7 +320,7 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 	session.ArmedAt = &armedAt
 	session.StopReason = ""
 	session.UpdatedAt = now
-	s.store.UpdateSession(session)
+	s.repo.UpdateSession(session)
 	grant := domain.ControlGrant{
 		ID:            s.nextID("grant"),
 		SessionID:     session.ID,
@@ -325,8 +334,8 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 		CreatedAt:     now,
 		LastRotatedAt: now,
 	}
-	s.store.PutGrant(grant)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.PutGrant(grant)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -343,7 +352,7 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 }
 
 func (s *ControlService) StopSession(ctx context.Context, sessionID string, request domain.StopSessionRequest) (domain.Session, error) {
-	session, err := s.store.GetSession(sessionID)
+	session, err := s.repo.GetSession(sessionID)
 	if err != nil {
 		return domain.Session{}, err
 	}
@@ -351,8 +360,8 @@ func (s *ControlService) StopSession(ctx context.Context, sessionID string, requ
 	session.Status = domain.SessionStopped
 	session.StopReason = request.Reason
 	session.UpdatedAt = now
-	s.store.UpdateSession(session)
-	_ = s.store.RevokeGrant(session.ID, now)
+	s.repo.UpdateSession(session)
+	_ = s.repo.RevokeGrant(session.ID, now)
 	s.metrics.IncPanicStop()
 	command := domain.ControlCommand{
 		SessionID:  session.ID,
@@ -372,11 +381,11 @@ func (s *ControlService) StopSession(ctx context.Context, sessionID string, requ
 		return domain.Session{}, err
 	}
 	session.Sequence = command.Sequence
-	s.store.UpdateSession(session)
+	s.repo.UpdateSession(session)
 	if err := s.relay.StopAll(ctx, command, request.Reason); err != nil {
 		return domain.Session{}, err
 	}
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -411,8 +420,8 @@ func (s *ControlService) UpsertRuleSet(_ context.Context, id string, request dom
 		Enabled:            request.Enabled,
 		UpdatedAt:          now,
 	}
-	s.store.UpsertRuleSet(ruleSet)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.UpsertRuleSet(ruleSet)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: request.WorkspaceID,
 		CreatorID:   request.CreatorID,
@@ -427,7 +436,7 @@ func (s *ControlService) UpsertRuleSet(_ context.Context, id string, request dom
 }
 
 func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.InboundEvent) (domain.ControlCommand, domain.UsageLedgerEntry, error) {
-	endpoint, err := s.store.GetEndpointByCreator(event.WorkspaceID, event.CreatorID)
+	endpoint, err := s.repo.GetEndpointByCreator(event.WorkspaceID, event.CreatorID)
 	if err != nil {
 		s.metrics.IncWebhookFailure()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
@@ -436,11 +445,11 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 		s.metrics.IncWebhookFailure()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
-	if err := s.store.ReserveIdempotency(event.WorkspaceID, event.IdempotencyKey, event.OccurredAt); err != nil {
+	if err := s.runtime.ReserveIdempotency(event.WorkspaceID, event.IdempotencyKey, event.OccurredAt); err != nil {
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
-	session, err := s.store.GetSession(event.SourceID)
+	session, err := s.repo.GetSession(event.SourceID)
 	if err != nil {
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
@@ -449,7 +458,7 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("session is not armed")
 	}
-	ruleSet, err := s.store.GetRuleSet(session.RuleSetID)
+	ruleSet, err := s.repo.GetRuleSet(session.RuleSetID)
 	if err != nil {
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
@@ -457,7 +466,7 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("ruleset is disabled")
 	}
-	grant, err := s.store.GetGrantBySession(session.ID)
+	grant, err := s.repo.GetGrantBySession(session.ID)
 	if err != nil {
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
@@ -465,11 +474,11 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("control grant expired")
 	}
-	if lastEventAt, ok := s.store.LastSessionEvent(session.ID); ok && s.now().Sub(lastEventAt) < time.Duration(ruleSet.CooldownMS)*time.Millisecond {
+	if lastEventAt, ok := s.runtime.LastSessionEvent(session.ID); ok && s.now().Sub(lastEventAt) < time.Duration(ruleSet.CooldownMS)*time.Millisecond {
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("ruleset cooldown is active")
 	}
-	if count := s.store.AppendSessionEvent(session.ID, s.now(), time.Minute); count > ruleSet.RateLimitPerMinute {
+	if count := s.runtime.AppendSessionEvent(session.ID, s.now(), time.Minute); count > ruleSet.RateLimitPerMinute {
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("ruleset rate limit exceeded")
 	}
@@ -497,7 +506,7 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 	}
 	session.Sequence++
 	session.UpdatedAt = now
-	s.store.UpdateSession(session)
+	s.repo.UpdateSession(session)
 	command := domain.ControlCommand{
 		SessionID:  session.ID,
 		Sequence:   session.Sequence,
@@ -537,8 +546,8 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 			"control_mode": "event-driven",
 		},
 	}
-	s.store.AddUsage(usage)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.AddUsage(usage)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -556,7 +565,7 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 }
 
 func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string, request domain.IngestTelemetryRequest) (domain.TelemetryEvent, error) {
-	session, err := s.store.GetSession(sessionID)
+	session, err := s.repo.GetSession(sessionID)
 	if err != nil {
 		return domain.TelemetryEvent{}, err
 	}
@@ -597,12 +606,12 @@ func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string,
 		session.Status = domain.SessionStopped
 		session.StopReason = request.StopReason
 		session.UpdatedAt = now
-		s.store.UpdateSession(session)
-		_ = s.store.RevokeGrant(session.ID, now)
+			s.repo.UpdateSession(session)
+			_ = s.repo.RevokeGrant(session.ID, now)
 	}
 
-	s.store.AddTelemetry(event)
-	s.store.AddAudit(domain.AuditEvent{
+	s.repo.AddTelemetry(event)
+	s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -626,11 +635,11 @@ func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string,
 }
 
 func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, creatorID string) (domain.WorkspaceOverview, error) {
-	workspace, err := s.store.GetWorkspace(workspaceID)
+	workspace, err := s.repo.GetWorkspace(workspaceID)
 	if err != nil {
 		return domain.WorkspaceOverview{}, err
 	}
-	creator, err := s.store.GetCreator(creatorID)
+	creator, err := s.repo.GetCreator(creatorID)
 	if err != nil {
 		return domain.WorkspaceOverview{}, err
 	}
@@ -638,7 +647,7 @@ func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, cr
 		return domain.WorkspaceOverview{}, errors.New("creator does not belong to workspace")
 	}
 
-	sessions := s.store.ListSessions(workspaceID, creatorID)
+	sessions := s.repo.ListSessions(workspaceID, creatorID)
 	sessionIDs := make([]string, 0, len(sessions))
 	for _, session := range sessions {
 		sessionIDs = append(sessionIDs, session.ID)
@@ -647,13 +656,13 @@ func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, cr
 	return domain.WorkspaceOverview{
 		Workspace:       workspace,
 		Creator:         creator,
-		Bridges:         s.store.ListBridges(workspaceID, creatorID),
-		Devices:         s.store.ListDevices(creatorID),
-		RuleSets:        s.store.ListRuleSets(workspaceID, creatorID),
+		Bridges:         s.repo.ListBridges(workspaceID, creatorID),
+		Devices:         s.repo.ListDevices(creatorID),
+		RuleSets:        s.repo.ListRuleSets(workspaceID, creatorID),
 		Sessions:        sessions,
-		RecentUsage:     s.store.ListUsage(workspaceID, 10),
-		RecentAudit:     s.store.ListAudit(workspaceID, creatorID, 12),
-		RecentTelemetry: s.store.ListTelemetry(sessionIDs, 12),
+		RecentUsage:     s.repo.ListUsage(workspaceID, 10),
+		RecentAudit:     s.repo.ListAudit(workspaceID, creatorID, 12),
+		RecentTelemetry: s.repo.ListTelemetry(sessionIDs, 12),
 		Metrics:         s.metrics.Snapshot(),
 		GeneratedAt:     s.now(),
 	}, nil
