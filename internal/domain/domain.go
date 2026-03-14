@@ -48,6 +48,17 @@ type Workspace struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type WorkspaceAPIKey struct {
+	ID         string     `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Label      string     `json:"label"`
+	KeyPrefix  string     `json:"key_prefix"`
+	KeyHash    string     `json:"-"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+}
+
 type Creator struct {
 	ID          string    `json:"id"`
 	WorkspaceID string    `json:"workspaceId"`

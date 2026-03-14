@@ -10,8 +10,6 @@ import (
 	"github.com/taas-hq/taas/internal/domain"
 )
 
-var ErrNotFound = errors.New("not found")
-
 type MemoryStore struct {
 	mu            sync.RWMutex
 	workspaces    map[string]domain.Workspace
@@ -25,6 +23,7 @@ type MemoryStore struct {
 	usage         []domain.UsageLedgerEntry
 	audit         []domain.AuditEvent
 	telemetry     []domain.TelemetryEvent
+	apiKeys       map[string]domain.WorkspaceAPIKey
 	idempotency   map[string]time.Time
 	sessionEvents map[string][]time.Time
 }
@@ -39,27 +38,22 @@ func NewMemoryStore() *MemoryStore {
 		sessions:      make(map[string]domain.Session),
 		endpoints:     make(map[string]domain.InboundEndpoint),
 		grants:        make(map[string]domain.ControlGrant),
+		apiKeys:       make(map[string]domain.WorkspaceAPIKey),
 		idempotency:   make(map[string]time.Time),
 		sessionEvents: make(map[string][]time.Time),
 	}
 }
 
-func (s *MemoryStore) Seed(
-	workspace domain.Workspace,
-	creator domain.Creator,
-	bridge domain.DeviceBridge,
-	device domain.Device,
-	ruleSet domain.RuleSet,
-	endpoint domain.InboundEndpoint,
-) {
+func (s *MemoryStore) UpsertWorkspace(workspace domain.Workspace) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.workspaces[workspace.ID] = workspace
+}
+
+func (s *MemoryStore) UpsertCreator(creator domain.Creator) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.creators[creator.ID] = creator
-	s.bridges[bridge.ID] = bridge
-	s.devices[device.ID] = device
-	s.rulesets[ruleSet.ID] = ruleSet
-	s.endpoints[endpoint.ID] = endpoint
 }
 
 func (s *MemoryStore) GetWorkspace(id string) (domain.Workspace, error) {
@@ -80,6 +74,12 @@ func (s *MemoryStore) GetCreator(id string) (domain.Creator, error) {
 		return domain.Creator{}, ErrNotFound
 	}
 	return creator, nil
+}
+
+func (s *MemoryStore) UpsertEndpoint(endpoint domain.InboundEndpoint) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.endpoints[endpoint.ID] = endpoint
 }
 
 func (s *MemoryStore) UpsertBridge(bridge domain.DeviceBridge) {
@@ -207,6 +207,27 @@ func (s *MemoryStore) AddTelemetry(entry domain.TelemetryEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.telemetry = append(s.telemetry, entry)
+}
+
+func (s *MemoryStore) PutWorkspaceAPIKey(entry domain.WorkspaceAPIKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.apiKeys[entry.KeyHash] = entry
+}
+
+func (s *MemoryStore) AuthenticateWorkspaceAPIKey(rawKey string, usedAt time.Time) (domain.WorkspaceAPIKey, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.apiKeys[HashWorkspaceAPIKey(rawKey)]
+	if !ok {
+		return domain.WorkspaceAPIKey{}, ErrUnauthorized
+	}
+	if entry.RevokedAt != nil {
+		return domain.WorkspaceAPIKey{}, ErrUnauthorized
+	}
+	entry.LastUsedAt = &usedAt
+	s.apiKeys[entry.KeyHash] = entry
+	return entry, nil
 }
 
 func (s *MemoryStore) ReserveIdempotency(workspaceID, key string, occurredAt time.Time) error {
