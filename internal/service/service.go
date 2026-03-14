@@ -776,6 +776,55 @@ func (s *ControlService) Relay() relay.Relay {
 	return s.relay
 }
 
+func (s *ControlService) StartHeartbeatWorker(ctx context.Context) {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.dispatchHeartbeats(ctx)
+			}
+		}
+	}()
+}
+
+func (s *ControlService) dispatchHeartbeats(ctx context.Context) {
+	sessions := s.repo.ListArmedSessions()
+	now := s.now()
+	for _, session := range sessions {
+		grant, err := s.repo.GetGrantBySession(session.ID)
+		if err != nil {
+			continue
+		}
+		if grant.RevokedAt != nil || now.After(grant.ExpiresAt) {
+			continue
+		}
+
+		// Sequence is not strictly required for heartbeats to increment in the DB
+		// but we send it for tracking.
+		hb := domain.ControlCommand{
+			SessionID:  session.ID,
+			Sequence:   atomic.AddInt64(&session.Sequence, 1),
+			DeviceID:   session.DeviceID,
+			Action:     domain.ActionHeartbeat,
+			IssuedAt:   now,
+			ExpiresAt:  now.Add(1 * time.Second),
+			Ciphertext: "", // Heartbeats are not encrypted payloads in this version, just signed
+		}
+		
+		sig, err := s.secure.SignControlCommand(hb)
+		if err != nil {
+			continue
+		}
+		hb.Signature = sig
+
+		_ = s.relay.Dispatch(ctx, hb)
+	}
+}
+
 func minTime(values ...time.Time) time.Time {
 	result := values[0]
 	for _, value := range values[1:] {
