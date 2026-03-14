@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -90,6 +91,8 @@ func main() {
 		logger.Error("failed to seed demo data", slog.Any("error", err))
 		os.Exit(1)
 	}
+
+	serviceLayer.StartHeartbeatWorker(context.Background())
 
 	server := api.NewServer(serviceLayer, repository, staticRoot)
 	logger.Info("control api listening",
