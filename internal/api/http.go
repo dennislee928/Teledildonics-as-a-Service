@@ -442,6 +442,9 @@ func (s *Server) withWorkspaceAPIKeyAuth(next http.Handler) http.Handler {
 		}
 
 		rawKey := request.Header.Get("X-Workspace-Api-Key")
+		if rawKey == "" && request.Method == http.MethodGet && strings.HasSuffix(request.URL.Path, "/stream") {
+			rawKey = request.URL.Query().Get("api_key")
+		}
 		if rawKey == "" {
 			writeError(writer, http.StatusUnauthorized, errors.New("x-workspace-api-key is required"))
 			return

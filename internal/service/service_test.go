@@ -175,6 +175,49 @@ func TestHandleInboundEventRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestHandleInboundEventRejectsDisallowedSource(t *testing.T) {
+	service, clock := newTestService(t)
+	session, err := service.CreateSession(context.Background(), domain.CreateSessionRequest{
+		WorkspaceID:   demoWorkspaceID,
+		CreatorID:     demoCreatorID,
+		DeviceID:      demoDeviceID,
+		RuleSetID:     demoRuleSetID,
+		MaxIntensity:  88,
+		MaxDurationMS: 12000,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := service.ArmSession(context.Background(), session.ID, domain.ArmSessionRequest{
+		BridgeID:    demoBridgeID,
+		ExpiresInMS: 60_000,
+	}); err != nil {
+		t.Fatalf("arm session: %v", err)
+	}
+
+	event, err := newSignedInboundEvent(service.secure, domain.InboundEvent{
+		EventType:      "tip.received",
+		WorkspaceID:    demoWorkspaceID,
+		CreatorID:      demoCreatorID,
+		SourceID:       session.ID,
+		Amount:         4.99,
+		Currency:       "USD",
+		OccurredAt:     clock().Add(2 * time.Second),
+		IdempotencyKey: "evt-disallowed-source",
+		Metadata: map[string]any{
+			"channel": "unknown-channel",
+		},
+	})
+	if err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+	if _, _, err := service.HandleInboundEvent(context.Background(), event); err == nil {
+		t.Fatalf("expected disallowed source error")
+	} else if err.Error() != "event source is not allowed" {
+		t.Fatalf("expected disallowed source error, got %v", err)
+	}
+}
+
 func TestPublishTelemetryStopsSessionAndRevokesGrant(t *testing.T) {
 	service, _ := newTestService(t)
 	session, err := service.CreateSession(context.Background(), domain.CreateSessionRequest{
@@ -224,6 +267,29 @@ func TestPublishTelemetryStopsSessionAndRevokesGrant(t *testing.T) {
 	}
 	if grant.RevokedAt == nil {
 		t.Fatalf("expected grant to be revoked")
+	}
+}
+
+func TestSeedDemoDataCreatesArmedDemoSession(t *testing.T) {
+	service, _ := newTestService(t)
+
+	session, err := service.repo.GetSession(demoSessionID)
+	if err != nil {
+		t.Fatalf("get demo session: %v", err)
+	}
+	if session.Status != domain.SessionArmed {
+		t.Fatalf("expected demo session to be armed, got %s", session.Status)
+	}
+	if session.ArmedAt == nil {
+		t.Fatalf("expected demo session to have armed_at")
+	}
+
+	grant, err := service.repo.GetGrantBySession(demoSessionID)
+	if err != nil {
+		t.Fatalf("get demo grant: %v", err)
+	}
+	if grant.ExpiresAt.IsZero() {
+		t.Fatalf("expected demo grant expiry to be set")
 	}
 }
 

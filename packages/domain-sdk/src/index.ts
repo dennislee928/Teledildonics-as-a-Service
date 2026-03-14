@@ -459,7 +459,11 @@ export class TaasClient {
       onError?: (error: Event) => void;
     }
   ): EventSource {
-    const source = new EventSource(new URL(`/v1/sessions/${sessionId}/stream`, this.options.baseUrl));
+    const streamUrl = new URL(`/v1/sessions/${sessionId}/stream`, this.options.baseUrl);
+    if (this.options.apiKey) {
+      streamUrl.searchParams.set("api_key", this.options.apiKey);
+    }
+    const source = new EventSource(streamUrl);
     source.addEventListener("telemetry", (event) => {
       const messageEvent = event as MessageEvent<string>;
       handlers.onMessage(JSON.parse(messageEvent.data) as TelemetryEvent);

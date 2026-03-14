@@ -22,6 +22,7 @@ const (
 	demoBridgeID    = "bridge_demo"
 	demoDeviceID    = "device_demo"
 	demoRuleSetID   = "rule_demo"
+	demoSessionID   = "session_demo"
 )
 
 const DevEndpointPublicKeySPKI = "MCowBQYDK2VwAyEActLEH8a4hP3A+lSi7xev4ifQuTsuEij9axOUqWioz5A="
@@ -189,6 +190,50 @@ func (s *ControlService) SeedDemoData() error {
 		KeyPrefix:   "taas_demo",
 		KeyHash:     store.HashWorkspaceAPIKey(DevWorkspaceAPIKey),
 		CreatedAt:   now,
+	}); err != nil {
+		return err
+	}
+	armedAt := now
+	demoSession := domain.Session{
+		ID:            demoSessionID,
+		WorkspaceID:   demoWorkspaceID,
+		CreatorID:     demoCreatorID,
+		DeviceID:      demoDeviceID,
+		RuleSetID:     demoRuleSetID,
+		Status:        domain.SessionArmed,
+		MaxIntensity:  88,
+		MaxDurationMS: 12000,
+		Sequence:      0,
+		ArmedAt:       &armedAt,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	existingSession, err := s.repo.GetSession(demoSessionID)
+	switch {
+	case err == nil:
+		demoSession.CreatedAt = existingSession.CreatedAt
+		if err := s.repo.UpdateSession(demoSession); err != nil {
+			return err
+		}
+	case errors.Is(err, store.ErrNotFound):
+		if err := s.repo.CreateSession(demoSession); err != nil {
+			return err
+		}
+	default:
+		return err
+	}
+	if err := s.repo.PutGrant(domain.ControlGrant{
+		ID:            "grant_demo",
+		SessionID:     demoSessionID,
+		BridgeID:      demoBridgeID,
+		WorkspaceID:   demoWorkspaceID,
+		CreatorID:     demoCreatorID,
+		SessionKey:    append([]byte(nil), sessionKey...),
+		ExpiresAt:     now.Add(24 * time.Hour),
+		MaxIntensity:  demoSession.MaxIntensity,
+		MaxDurationMS: demoSession.MaxDurationMS,
+		CreatedAt:     now,
+		LastRotatedAt: now,
 	}); err != nil {
 		return err
 	}
@@ -485,6 +530,10 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 		s.metrics.IncWebhookFailure()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
+	if !isAllowedInboundSource(endpoint, event) {
+		s.metrics.IncRuleRejection()
+		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, errors.New("event source is not allowed")
+	}
 	if err := s.runtime.ReserveIdempotency(event.WorkspaceID, event.IdempotencyKey, event.OccurredAt); err != nil {
 		s.metrics.IncRuleRejection()
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
@@ -759,4 +808,31 @@ func percentile(values []float64, p float64) float64 {
 		index = len(values) - 1
 	}
 	return values[index]
+}
+
+func isAllowedInboundSource(endpoint domain.InboundEndpoint, event domain.InboundEvent) bool {
+	if len(endpoint.AllowedSources) == 0 {
+		return true
+	}
+
+	for _, candidate := range inboundSourceCandidates(event) {
+		for _, allowed := range endpoint.AllowedSources {
+			if candidate == allowed {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func inboundSourceCandidates(event domain.InboundEvent) []string {
+	candidates := make([]string, 0, 2)
+	if event.SourceID != "" {
+		candidates = append(candidates, event.SourceID)
+	}
+	if channel, ok := event.Metadata["channel"].(string); ok && channel != "" {
+		candidates = append(candidates, channel)
+	}
+	return candidates
 }

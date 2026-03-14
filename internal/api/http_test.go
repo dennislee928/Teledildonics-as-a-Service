@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -62,6 +63,39 @@ func TestAPIRejectsWorkspaceMismatch(t *testing.T) {
 
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", recorder.Code)
+	}
+}
+
+func TestAPIAllowsSessionStreamWithQueryAPIKey(t *testing.T) {
+	server := newTestServer(t)
+	session, err := server.service.CreateSession(context.Background(), domain.CreateSessionRequest{
+		WorkspaceID:   "ws_demo",
+		CreatorID:     "cr_demo",
+		DeviceID:      "device_demo",
+		RuleSetID:     "rule_demo",
+		MaxIntensity:  88,
+		MaxDurationMS: 12000,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/sessions/"+session.ID+"/stream?api_key="+service.DevWorkspaceAPIKey,
+		nil,
+	).WithContext(ctx)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	if recorder.Header().Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("expected text/event-stream content type, got %q", recorder.Header().Get("Content-Type"))
 	}
 }
 
