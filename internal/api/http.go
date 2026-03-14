@@ -11,7 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/websocket"
+
 	"github.com/taas-hq/taas/internal/domain"
+	"github.com/taas-hq/taas/internal/relay"
+	"github.com/taas-hq/taas/internal/secure"
 	"github.com/taas-hq/taas/internal/service"
 	"github.com/taas-hq/taas/internal/store"
 )
@@ -31,11 +35,19 @@ func NewServer(service *service.ControlService, repo store.Repository, staticRoo
 }
 
 type authContextKey struct{}
+type bridgeAuthContextKey struct{}
 
 type workspacePrincipal struct {
 	WorkspaceID string
 	KeyID       string
 	Label       string
+}
+
+type bridgePrincipal struct {
+	SessionID   string
+	BridgeID    string
+	WorkspaceID string
+	CreatorID   string
 }
 
 func (s *Server) Handler() http.Handler {
@@ -48,11 +60,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/device-bridges/pair", s.handlePairDeviceBridge)
 	mux.HandleFunc("/v1/sessions", s.handleSessions)
 	mux.HandleFunc("/v1/sessions/", s.handleSessionRoutes)
+	mux.HandleFunc("/bridge/v1/sessions/", s.handleBridgeSessionRoutes)
 	mux.HandleFunc("/v1/rulesets", s.handleCreateRuleSet)
 	mux.HandleFunc("/v1/rulesets/", s.handleUpdateRuleSet)
 	mux.HandleFunc("/v1/workspaces/", s.handleWorkspaceRoutes)
 	s.registerStaticApps(mux)
-	return withCORS(s.withWorkspaceAPIKeyAuth(mux))
+	return withCORS(s.withBridgeSessionAuth(s.withWorkspaceAPIKeyAuth(mux)))
 }
 
 func (s *Server) handleLandingPage(writer http.ResponseWriter, request *http.Request) {
@@ -293,6 +306,48 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 	}
 }
 
+func (s *Server) handleBridgeSessionRoutes(writer http.ResponseWriter, request *http.Request) {
+	trimmed := strings.TrimPrefix(request.URL.Path, "/bridge/v1/sessions/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 {
+		writeError(writer, http.StatusNotFound, errors.New("unknown bridge session route"))
+		return
+	}
+	sessionID := parts[0]
+	action := parts[1]
+
+	switch {
+	case request.Method == http.MethodGet && action == "connect":
+		if err := s.requireBridgeSessionAccess(request, sessionID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
+		s.handleBridgeSessionConnect(writer, request, sessionID)
+	case request.Method == http.MethodPost && action == "telemetry":
+		if err := s.requireBridgeSessionAccess(request, sessionID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
+		var telemetryRequest domain.IngestTelemetryRequest
+		if err := json.NewDecoder(request.Body).Decode(&telemetryRequest); err != nil {
+			writeError(writer, http.StatusBadRequest, err)
+			return
+		}
+		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		writeJSON(writer, http.StatusAccepted, event)
+	default:
+		methodNotAllowed(writer)
+	}
+}
+
 func (s *Server) handleCreateRuleSet(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		methodNotAllowed(writer)
@@ -424,13 +479,69 @@ func (s *Server) streamSession(writer http.ResponseWriter, request *http.Request
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
-		writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Workspace-Api-Key")
+		writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Workspace-Api-Key, X-Bridge-Token")
 		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		if request.Method == http.MethodOptions {
 			writer.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(writer, request)
+	})
+}
+
+func (s *Server) withBridgeSessionAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method == http.MethodOptions || !strings.HasPrefix(request.URL.Path, "/bridge/v1/sessions/") {
+			next.ServeHTTP(writer, request)
+			return
+		}
+
+		trimmed := strings.TrimPrefix(request.URL.Path, "/bridge/v1/sessions/")
+		parts := strings.Split(trimmed, "/")
+		if len(parts) < 2 {
+			next.ServeHTTP(writer, request)
+			return
+		}
+		sessionID := parts[0]
+		action := parts[1]
+
+		rawToken := request.Header.Get("X-Bridge-Token")
+		if rawToken == "" {
+			rawToken = request.URL.Query().Get("bridge_token")
+		}
+		if rawToken == "" {
+			writeError(writer, http.StatusUnauthorized, errors.New("x-bridge-token is required"))
+			return
+		}
+
+		grant, err := s.repo.GetGrantBySession(sessionID)
+		if err != nil {
+			status := http.StatusUnauthorized
+			if !errors.Is(err, store.ErrNotFound) {
+				status = http.StatusUnprocessableEntity
+			}
+			writeError(writer, status, err)
+			return
+		}
+		if action == "connect" {
+			if grant.RevokedAt != nil || time.Now().UTC().After(grant.ExpiresAt) {
+				writeError(writer, http.StatusUnauthorized, errors.New("bridge grant expired"))
+				return
+			}
+		}
+		if !secure.VerifyBridgeToken(rawToken, sessionID, grant.BridgeID, grant.SessionKey) {
+			writeError(writer, http.StatusUnauthorized, errors.New("invalid bridge token"))
+			return
+		}
+
+		principal := bridgePrincipal{
+			SessionID:   sessionID,
+			BridgeID:    grant.BridgeID,
+			WorkspaceID: grant.WorkspaceID,
+			CreatorID:   grant.CreatorID,
+		}
+		ctx := context.WithValue(request.Context(), bridgeAuthContextKey{}, principal)
+		next.ServeHTTP(writer, request.WithContext(ctx))
 	})
 }
 
@@ -479,6 +590,49 @@ func (s *Server) requireWorkspaceAccess(request *http.Request, workspaceID strin
 		return errors.New("workspace api key does not grant access to this workspace")
 	}
 	return nil
+}
+
+func (s *Server) requireBridgeSessionAccess(request *http.Request, sessionID string) error {
+	principal, ok := request.Context().Value(bridgeAuthContextKey{}).(bridgePrincipal)
+	if !ok {
+		return errors.New("bridge principal missing from request context")
+	}
+	if principal.SessionID != sessionID {
+		return errors.New("bridge token does not grant access to this session")
+	}
+	return nil
+}
+
+func (s *Server) handleBridgeSessionConnect(writer http.ResponseWriter, request *http.Request, sessionID string) {
+	principal, ok := request.Context().Value(bridgeAuthContextKey{}).(bridgePrincipal)
+	if !ok {
+		writeError(writer, http.StatusUnauthorized, errors.New("bridge principal missing from request context"))
+		return
+	}
+	bridgeRelay, ok := s.service.Relay().(relay.BridgeSessionRelay)
+	if !ok {
+		writeError(writer, http.StatusNotImplemented, errors.New("bridge websocket relay is unavailable"))
+		return
+	}
+
+	websocket.Handler(func(conn *websocket.Conn) {
+		commands, cancel, err := bridgeRelay.SubscribeBridgeSession(sessionID, principal.BridgeID)
+		if err != nil {
+			_ = conn.Close()
+			return
+		}
+		defer cancel()
+		for {
+			command, ok := <-commands
+			if !ok {
+				return
+			}
+			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if err := websocket.JSON.Send(conn, command); err != nil {
+				return
+			}
+		}
+	}).ServeHTTP(writer, request)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

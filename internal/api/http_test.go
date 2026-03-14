@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/taas-hq/taas/internal/domain"
 	"github.com/taas-hq/taas/internal/relay"
@@ -96,6 +97,61 @@ func TestAPIAllowsSessionStreamWithQueryAPIKey(t *testing.T) {
 	}
 	if recorder.Header().Get("Content-Type") != "text/event-stream" {
 		t.Fatalf("expected text/event-stream content type, got %q", recorder.Header().Get("Content-Type"))
+	}
+}
+
+func TestAPIAcceptsBridgeTelemetryWithGrantToken(t *testing.T) {
+	server := newTestServer(t)
+	grant, err := server.repo.GetGrantBySession("session_demo")
+	if err != nil {
+		t.Fatalf("get grant: %v", err)
+	}
+	token := secure.DeriveBridgeToken("session_demo", grant.BridgeID, grant.SessionKey)
+
+	body, err := json.Marshal(domain.IngestTelemetryRequest{
+		Sequence:    1,
+		Status:      domain.TelemetryAck,
+		ExecutedAt:  time.Now().UTC(),
+		DeviceState: "command-accepted",
+		LatencyMS:   28,
+	})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/bridge/v1/sessions/session_demo/telemetry", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Bridge-Token", token)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", recorder.Code)
+	}
+}
+
+func TestAPIRejectsInvalidBridgeTelemetryToken(t *testing.T) {
+	server := newTestServer(t)
+	body, err := json.Marshal(domain.IngestTelemetryRequest{
+		Sequence:    1,
+		Status:      domain.TelemetryAck,
+		DeviceState: "command-accepted",
+		LatencyMS:   28,
+	})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/bridge/v1/sessions/session_demo/telemetry", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Bridge-Token", "bad-token")
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", recorder.Code)
 	}
 }
 

@@ -81,8 +81,8 @@ func main() {
 			AccountID:      os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
 			RealtimeAppID:  os.Getenv("CLOUDFLARE_REALTIME_APP_ID"),
 			TurnServiceID:  os.Getenv("CLOUDFLARE_TURN_SERVICE_ID"),
-			FallbackWSBase: "ws://localhost:8080/ws/fallback",
-		}, inMemoryRelay),
+			FallbackWSBase: "ws://localhost:8080/bridge/v1/sessions/{session_id}/connect",
+		}, repository, inMemoryRelay),
 		secure.NewEngine([]byte("taas-server-signing")),
 		service.NewMetrics(),
 	)

@@ -133,7 +133,7 @@ func (s *ControlService) SeedDemoData() error {
 		CreatorID:            demoCreatorID,
 		Transport:            domain.TransportCloudflareRealtime,
 		Status:               "online",
-		FallbackWebSocketURL: "wss://localhost:8080/ws/fallback",
+		FallbackWebSocketURL: "ws://localhost:8080/bridge/v1/sessions/{session_id}/connect",
 		PublicKey:            DevEndpointPublicKeySPKI,
 		TransportPublicKey:   "",
 		CreatedAt:            now,
@@ -277,7 +277,7 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 		CreatorID:            request.CreatorID,
 		Transport:            domain.TransportCloudflareRealtime,
 		Status:               "online",
-		FallbackWebSocketURL: fmt.Sprintf("wss://control.example.invalid/fallback/%s", bridgeID),
+		FallbackWebSocketURL: "wss://control.example.invalid/bridge/v1/sessions/{session_id}/connect",
 		PublicKey:            signingPublicKey,
 		TransportPublicKey:   request.TransportPublicKey,
 		CreatedAt:            now,
@@ -618,7 +618,6 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 	if err := s.relay.Dispatch(ctx, command); err != nil {
 		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
 	}
-	s.metrics.ObserveAckLatency(25)
 	usage := domain.UsageLedgerEntry{
 		ID:          s.nextID("usage"),
 		WorkspaceID: session.WorkspaceID,
@@ -771,6 +770,10 @@ func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, cr
 
 func (s *ControlService) SubscribeSession(sessionID string) (<-chan domain.TelemetryEvent, func()) {
 	return s.relay.Subscribe(sessionID)
+}
+
+func (s *ControlService) Relay() relay.Relay {
+	return s.relay
 }
 
 func minTime(values ...time.Time) time.Time {

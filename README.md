@@ -65,6 +65,8 @@ curl -H 'X-Workspace-Api-Key: taas_demo_workspace_key' \
   'http://127.0.0.1:8080/v1/workspaces/ws_demo/overview?creator_id=cr_demo'
 ```
 
+Bridge-facing transport routes live under `/bridge/v1/*` instead. They use a session grant token derived from the session key and current bridge grant, not a workspace API key. See [`docs/relay-transport.md`](./docs/relay-transport.md) for the transport contract and the current demo-vs-production caveats.
+
 You can switch persistence layers with:
 
 - `STORE_REPOSITORY_BACKEND=memory|postgres`
@@ -109,4 +111,5 @@ The browser apps use a development Ed25519 keypair that matches the seeded endpo
 - Control commands are encrypted with AES-256-GCM and signed with Ed25519.
 - Pairing uses an X25519 transport key from the companion to wrap the session key returned by `POST /v1/device-bridges/pair`.
 - Session state is zero-trust by default: disarm, token expiry, runtime background loss, or explicit panic stop all collapse into `stop-all`.
-- The relay abstraction defaults to an in-memory local transport for development and a Cloudflare/Pion shaped adapter for production wiring.
+- The relay abstraction now queues signed commands per session and exposes a bridge-facing fallback websocket contract at `/bridge/v1/sessions/{session_id}/connect`, while telemetry returns through `/bridge/v1/sessions/{session_id}/telemetry`.
+- The current fallback transport is still demo-grade because the queue is process-local memory; production wiring still needs persistent relay state and a real Cloudflare/WebRTC transport.

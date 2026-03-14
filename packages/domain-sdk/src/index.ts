@@ -147,7 +147,7 @@ export interface ControlCommand {
   session_id: string;
   sequence: number;
   device_id: string;
-  action: "apply" | "stop-all";
+  action: "apply" | "stop-all" | "heartbeat";
   intensity: number;
   duration_ms: number;
   pattern_id: string;
@@ -264,6 +264,10 @@ function toBase64(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary);
 }
 
+function toBase64Url(bytes: ArrayBuffer | Uint8Array): string {
+  return toBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
+}
+
 function fromBase64(input: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(input, "base64"));
@@ -308,6 +312,16 @@ async function importPublicKeyFromDer(base64Der: string): Promise<CryptoKey> {
     { name: "Ed25519" },
     false,
     ["verify"]
+  );
+}
+
+async function importHmacKey(sessionKeyBase64: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    toCryptoBuffer(fromBase64(sessionKeyBase64)),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
   );
 }
 
@@ -361,6 +375,17 @@ export async function verifyCommandSignature(
   return verifyDetachedSignature(payload, command.signature, publicKeyBase64);
 }
 
+export async function deriveBridgeToken(
+  sessionId: string,
+  bridgeId: string,
+  sessionKeyBase64: string
+): Promise<string> {
+  const key = await importHmacKey(sessionKeyBase64);
+  const payload = textEncoder.encode(`bridge-token:v1:${sessionId}:${bridgeId}`);
+  const signature = await crypto.subtle.sign("HMAC", key, toCryptoBuffer(payload));
+  return toBase64Url(signature);
+}
+
 export class TaasClient {
   constructor(
     private readonly options: {
@@ -378,6 +403,13 @@ export class TaasClient {
       : {
           "Content-Type": "application/json"
         };
+  }
+
+  private buildBridgeHeaders(bridgeToken: string): HeadersInit {
+    return {
+      "Content-Type": "application/json",
+      "X-Bridge-Token": bridgeToken
+    };
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
@@ -478,6 +510,24 @@ export class TaasClient {
     return this.request(`/v1/sessions/${sessionId}/telemetry`, {
       method: "POST",
       headers: this.buildHeaders(),
+      body: JSON.stringify(request)
+    });
+  }
+
+  buildBridgeSessionConnectUrl(sessionId: string, bridgeToken: string): string {
+    const url = new URL(`/bridge/v1/sessions/${sessionId}/connect`, this.options.baseUrl);
+    url.searchParams.set("bridge_token", bridgeToken);
+    return url.toString();
+  }
+
+  publishBridgeTelemetry(
+    sessionId: string,
+    bridgeToken: string,
+    request: IngestTelemetryRequest
+  ): Promise<TelemetryEvent> {
+    return this.request(`/bridge/v1/sessions/${sessionId}/telemetry`, {
+      method: "POST",
+      headers: this.buildBridgeHeaders(bridgeToken),
       body: JSON.stringify(request)
     });
   }

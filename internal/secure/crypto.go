@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ed25519"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -167,6 +168,23 @@ func (e *Engine) VerifyInboundSignature(event domain.InboundEvent, publicKeySPKI
 		return errors.New("invalid inbound signature")
 	}
 	return nil
+}
+
+func DeriveBridgeToken(sessionID, bridgeID string, sessionKey []byte) string {
+	mac := hmac.New(sha256.New, sessionKey)
+	_, _ = mac.Write([]byte("bridge-token:v1:"))
+	_, _ = mac.Write([]byte(sessionID))
+	_, _ = mac.Write([]byte(":"))
+	_, _ = mac.Write([]byte(bridgeID))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func VerifyBridgeToken(rawToken, sessionID, bridgeID string, sessionKey []byte) bool {
+	if rawToken == "" {
+		return false
+	}
+	expected := DeriveBridgeToken(sessionID, bridgeID, sessionKey)
+	return hmac.Equal([]byte(expected), []byte(rawToken))
 }
 
 func (e *Engine) EncryptCommand(command domain.CommandPayload, sessionKey []byte) (SignedPayload, error) {

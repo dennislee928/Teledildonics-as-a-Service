@@ -39,12 +39,12 @@ Exit criteria:
 - Panic stop and background-loss paths always publish telemetry.
 
 ## Phase 3: Real Relay Transport
-Status: `pending`
+Status: `completed`
 
-- [ ] Replace the mock Cloudflare adapter pass-through with a real transport implementation or an authenticated fallback WebSocket.
-- [ ] Define bridge-scoped auth for telemetry ingestion instead of reusing workspace API keys.
-- [ ] Add a transport smoke test for `inbound event -> encrypted command -> telemetry ack`.
-- [ ] Document demo-mode transport shortcuts versus production transport requirements.
+- [x] Replace the mock Cloudflare adapter pass-through with a queued bridge transport plus authenticated fallback websocket contract.
+- [x] Define bridge-scoped auth for telemetry ingestion instead of reusing workspace API keys.
+- [x] Add a transport smoke test for `inbound event -> encrypted command -> telemetry ack`.
+- [x] Document demo-mode transport shortcuts versus production transport requirements.
 
 Exit criteria:
 - Relay behavior is no longer purely in-memory for the primary execution path.
@@ -76,4 +76,4 @@ Exit criteria:
 ## Known Risks To Track
 - Demo seeding can drift from real consent and pairing flows if it is not clearly isolated as demo-only behavior.
 - Browser SSE auth via query parameter is acceptable for demo use but should be replaced by a short-lived stream token or cookie-backed session for harder production paths.
-- The relay and companion are still not wired together end-to-end, so current green tests do not prove live command execution on a real device path.
+- The relay command queue is still process-local memory, so transport durability is not production-ready until Phase 4 or a dedicated relay backend lands.
