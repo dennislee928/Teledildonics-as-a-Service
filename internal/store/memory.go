@@ -338,6 +338,18 @@ func (s *MemoryStore) ListSessions(workspaceID, creatorID string) []domain.Sessi
 	return sessions
 }
 
+func (s *MemoryStore) ListArmedSessions() []domain.Session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sessions := make([]domain.Session, 0)
+	for _, session := range s.sessions {
+		if session.Status == domain.SessionArmed {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions
+}
+
 func (s *MemoryStore) ListUsage(workspaceID string, limit int) []domain.UsageLedgerEntry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

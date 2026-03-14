@@ -1,8 +1,8 @@
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use thiserror::Error;
 
-use crate::crypto::{decrypt_command_payload, CryptoError};
+use crate::crypto::{decrypt_command_payload, verify_command_signature, CryptoError};
 use crate::device::DeviceBackend;
 use crate::model::{ArmedSession, ControlCommand, TelemetryEvent};
 use crate::relay::RelayTransport;
@@ -23,6 +23,7 @@ pub struct CompanionRuntime<R: RelayTransport, D: DeviceBackend> {
     relay: R,
     devices: D,
     armed_session: Option<ArmedSession>,
+    last_heartbeat_at: Option<SystemTime>,
 }
 
 impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
@@ -31,11 +32,13 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             relay,
             devices,
             armed_session: None,
+            last_heartbeat_at: None,
         }
     }
 
     pub fn arm_session(&mut self, session: ArmedSession) {
         self.armed_session = Some(session);
+        self.last_heartbeat_at = Some(SystemTime::now());
     }
 
     pub fn apply_command(
@@ -46,9 +49,17 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             .armed_session
             .clone()
             .ok_or(RuntimeError::SessionNotArmed)?;
+        
+        // V2 Requirement: EVERY command must be signed by the server key.
+        verify_command_signature(command, &session.server_public_key)?;
+
         if command.action == "stop-all" {
             self.devices.stop_all(&session.device_id);
             return Ok(self.emit(command, "stopped", "stopped", 0.0, Some("panic-stop")));
+        }
+        if command.action == "heartbeat" {
+            self.last_heartbeat_at = Some(SystemTime::now());
+            return Ok(self.emit(command, "ack", "heartbeat-received", 0.0, None));
         }
         if command.intensity > session.max_intensity
             || command.duration_ms > session.max_duration_ms
@@ -70,6 +81,32 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
         let event = self.emit(command, "ack", "command-accepted", 25.0, None);
         self.relay.publish(event.clone());
         Ok(event)
+    }
+
+    pub fn check_safety(&mut self) -> Result<(), RuntimeError> {
+        let session = self
+            .armed_session
+            .as_ref()
+            .ok_or(RuntimeError::SessionNotArmed)?;
+        let last_hb = self
+            .last_heartbeat_at
+            .ok_or(RuntimeError::SessionNotArmed)?;
+        if last_hb.elapsed().unwrap_or(Duration::from_secs(999)) > Duration::from_millis(500) {
+            self.devices.stop_all(&session.device_id);
+            let event = TelemetryEvent {
+                session_id: session.session_id.clone(),
+                sequence: 0,
+                status: "stopped".to_string(),
+                executed_at: rfc3339_now(),
+                device_state: "stopped".to_string(),
+                latency_ms: 0.0,
+                error_code: Some("heartbeat-timeout".to_string()),
+                stop_reason: Some("autonomous-heartbeat-timeout".to_string()),
+            };
+            self.relay.publish(event);
+            return Err(RuntimeError::Expired);
+        }
+        Ok(())
     }
 
     pub fn panic_stop(&mut self, reason: &str) -> Result<TelemetryEvent, RuntimeError> {
@@ -148,6 +185,7 @@ mod tests {
     use aes_gcm::aead::{Aead, KeyInit};
     use aes_gcm::{Aes256Gcm, Nonce};
     use base64::Engine;
+    use ed25519_dalek::{SigningKey, Signer};
     use serde_json::to_vec;
 
     use super::*;
@@ -166,6 +204,7 @@ mod tests {
             session_id: "session_demo".to_string(),
             device_id: "device_demo".to_string(),
             session_key: [9u8; 32],
+            server_public_key: [0u8; 32],
             max_intensity: 88,
             max_duration_ms: 12_000,
         });
@@ -178,19 +217,47 @@ mod tests {
     }
 
     #[test]
+    fn runtime_triggers_panic_stop_on_heartbeat_timeout() {
+        let relay = MockRelayTransport::new("cloudflare-realtime");
+        let devices = MockDeviceBackend::with_device("device_demo");
+        let mut runtime = CompanionRuntime::new(relay.clone(), devices);
+        runtime.arm_session(ArmedSession {
+            session_id: "session_demo".to_string(),
+            device_id: "device_demo".to_string(),
+            session_key: [7u8; 32],
+            server_public_key: [0u8; 32],
+            max_intensity: 88,
+            max_duration_ms: 12_000,
+        });
+        
+        runtime.check_safety().expect("initially safe");
+        runtime.last_heartbeat_at = Some(SystemTime::now() - Duration::from_millis(600));
+
+        let res = runtime.check_safety();
+        assert!(res.is_err());
+        assert_eq!(relay.events().len(), 1);
+        assert_eq!(relay.events()[0].error_code, Some("heartbeat-timeout".to_string()));
+    }
+
+    #[test]
     fn runtime_applies_valid_command() {
         let relay = MockRelayTransport::new("cloudflare-realtime");
         let devices = MockDeviceBackend::with_device("device_demo");
         let mut runtime = CompanionRuntime::new(relay.clone(), devices);
         let session_key = [7u8; 32];
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let server_public_key = signing_key.verifying_key().to_bytes();
+
         runtime.arm_session(ArmedSession {
             session_id: "session_demo".to_string(),
             device_id: "device_demo".to_string(),
             session_key,
+            server_public_key,
             max_intensity: 88,
             max_duration_ms: 12_000,
         });
-        let command = encrypt_command(&session_key, 42, 8_400);
+
+        let command = encrypt_and_sign_command(&signing_key, &session_key, 42, 8_400);
         let telemetry = runtime
             .apply_command(&command)
             .expect("command should apply");
@@ -198,7 +265,12 @@ mod tests {
         assert_eq!(relay.events().len(), 1);
     }
 
-    fn encrypt_command(session_key: &[u8; 32], intensity: u8, duration_ms: u64) -> ControlCommand {
+    fn encrypt_and_sign_command(
+        signing_key: &SigningKey,
+        session_key: &[u8; 32],
+        intensity: u8,
+        duration_ms: u64,
+    ) -> ControlCommand {
         let payload = CommandPayload {
             session_id: "session_demo".to_string(),
             device_id: "device_demo".to_string(),
@@ -220,7 +292,8 @@ mod tests {
                 to_vec(&payload).expect("payload").as_ref(),
             )
             .expect("encrypt");
-        ControlCommand {
+        
+        let mut command = ControlCommand {
             session_id: "session_demo".to_string(),
             sequence: 1,
             device_id: "device_demo".to_string(),
@@ -233,6 +306,11 @@ mod tests {
             expires_at: payload.expires_at,
             ciphertext: BASE64.encode(ciphertext),
             signature: String::new(),
-        }
+        };
+
+        let canonical = crate::crypto::canonical_command(&command).expect("canonical");
+        let sig = signing_key.sign(&canonical);
+        command.signature = BASE64.encode(sig.to_bytes());
+        command
     }
 }

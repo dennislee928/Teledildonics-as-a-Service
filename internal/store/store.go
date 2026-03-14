@@ -33,6 +33,7 @@ type Repository interface {
 	UpdateSession(domain.Session) error
 	GetSession(id string) (domain.Session, error)
 	ListSessions(workspaceID, creatorID string) []domain.Session
+	ListArmedSessions() []domain.Session
 	UpsertEndpoint(domain.InboundEndpoint) error
 	GetEndpointByCreator(workspaceID, creatorID string) (domain.InboundEndpoint, error)
 	PutGrant(domain.ControlGrant) error

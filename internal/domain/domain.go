@@ -28,8 +28,9 @@ const (
 type CommandAction string
 
 const (
-	ActionApply   CommandAction = "apply"
-	ActionStopAll CommandAction = "stop-all"
+	ActionApply     CommandAction = "apply"
+	ActionStopAll   CommandAction = "stop-all"
+	ActionHeartbeat CommandAction = "heartbeat"
 )
 
 type TelemetryStatus string

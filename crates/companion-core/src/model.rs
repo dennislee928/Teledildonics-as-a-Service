@@ -61,6 +61,7 @@ pub struct ArmedSession {
     pub session_id: String,
     pub device_id: String,
     pub session_key: [u8; 32],
+    pub server_public_key: [u8; 32],
     pub max_intensity: u8,
     pub max_duration_ms: u64,
 }
