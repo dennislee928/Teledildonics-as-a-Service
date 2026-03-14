@@ -334,6 +334,14 @@ func (s *PostgresStore) ListSessions(workspaceID, creatorID string) []domain.Ses
 	`, workspaceID, creatorID)
 }
 
+func (s *PostgresStore) ListArmedSessions() []domain.Session {
+	return queryManyJSON[domain.Session](s.db, `
+		select payload from sessions
+		where payload->>'status' = 'armed'
+		order by updated_at desc
+	`)
+}
+
 func (s *PostgresStore) UpsertEndpoint(entry domain.InboundEndpoint) error {
 	payload, err := json.Marshal(entry)
 	if err != nil {

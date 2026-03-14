@@ -92,7 +92,7 @@ pub fn deterministic_identity(seed: &[u8; 32]) -> SigningKey {
     SigningKey::from_bytes(seed)
 }
 
-fn canonical_command(command: &ControlCommand) -> Result<Vec<u8>, CryptoError> {
+pub(crate) fn canonical_command(command: &ControlCommand) -> Result<Vec<u8>, CryptoError> {
     Ok(serde_json::to_vec(&json!({
         "session_id": command.session_id,
         "sequence": command.sequence,

@@ -57,12 +57,66 @@
         overflow: auto;
         white-space: pre-wrap;
       }
+
+      label {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 12px;
+        color: var(--muted);
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid rgba(240, 246, 252, 0.12);
+        background: rgba(9, 12, 16, 0.92);
+        color: var(--ink);
+        padding: 12px 14px;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
     </style>
   </head>
   <body>
     <main>
       <p>Tauri v2 shell for the creator-side companion runtime.</p>
       <h1>Secure local bridge, explicit stop-all defaults.</h1>
+      <p style="color:var(--muted); max-width:60ch;">
+        Bootstrap the runtime with a decrypted session key and the server signing public key from the
+        pairing flow. The signing key field accepts the Go API's SPKI base64 output or raw 32-byte
+        Ed25519 base64.
+      </p>
+      <label>
+        Session ID
+        <input id="session-id" value="session_demo" />
+      </label>
+      <label>
+        Device ID
+        <input id="device-id" value="device_demo" />
+      </label>
+      <label>
+        Session key base64
+        <textarea id="session-key" placeholder="Paste the decrypted 32-byte session key as base64"></textarea>
+      </label>
+      <label>
+        Server signing public key
+        <textarea id="server-signing-key" placeholder="Paste server_signing_public_key from the pairing response"></textarea>
+      </label>
+      <div style="display:flex; gap:12px; margin-bottom:18px;">
+        <label style="flex:1; margin-bottom:0;">
+          Max intensity
+          <input id="max-intensity" type="number" value="88" />
+        </label>
+        <label style="flex:1; margin-bottom:0;">
+          Max duration (ms)
+          <input id="max-duration" type="number" value="12000" />
+        </label>
+      </div>
       <div style="display:flex; gap:12px; margin:20px 0 18px;">
         <button id="bootstrap">Bootstrap runtime</button>
         <button id="panic-stop">Panic stop</button>
@@ -72,17 +126,31 @@
 
     <script>
       const log = document.getElementById("log");
-      async function invoke(command) {
+      async function invoke(command, args = {}) {
         if (!window.__TAURI__?.core?.invoke) {
           log.textContent = "Open this page inside the Tauri shell to use commands.";
           return;
         }
-        const result = await window.__TAURI__.core.invoke(command);
-        log.textContent = JSON.stringify(result, null, 2);
+        try {
+          const result = await window.__TAURI__.core.invoke(command, args);
+          log.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          log.textContent = error instanceof Error ? error.message : String(error);
+        }
       }
-      document.getElementById("bootstrap").addEventListener("click", () => invoke("bootstrap_runtime"));
+      document.getElementById("bootstrap").addEventListener("click", () =>
+        invoke("bootstrap_runtime", {
+          request: {
+            sessionId: document.getElementById("session-id").value,
+            deviceId: document.getElementById("device-id").value,
+            sessionKeyBase64: document.getElementById("session-key").value,
+            serverSigningPublicKey: document.getElementById("server-signing-key").value,
+            maxIntensity: Number(document.getElementById("max-intensity").value),
+            maxDurationMs: Number(document.getElementById("max-duration").value)
+          }
+        })
+      );
       document.getElementById("panic-stop").addEventListener("click", () => invoke("panic_stop"));
     </script>
   </body>
 </html>
-

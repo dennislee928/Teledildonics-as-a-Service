@@ -27,12 +27,12 @@ Exit criteria:
 - Disallowed inbound sources are rejected before command dispatch.
 
 ## Phase 2: Companion Trust Boundary
-Status: `pending`
+Status: `completed`
 
-- [ ] Verify Ed25519 command signatures inside `companion-core` before decrypt/apply.
-- [ ] Ensure `stop-all` and all terminal runtime states emit telemetry consistently.
-- [ ] Replace hard-coded Tauri bootstrap state with real pairing and session bootstrap inputs.
-- [ ] Add companion tests for invalid signatures, expired payloads, and stop-all delivery.
+- [x] Verify Ed25519 command signatures inside `companion-core` before decrypt/apply.
+- [x] Ensure `stop-all` and all terminal runtime states emit telemetry consistently.
+- [x] Replace hard-coded Tauri bootstrap state with real pairing and session bootstrap inputs.
+- [x] Add companion tests for invalid signatures, expired payloads, and stop-all delivery.
 
 Exit criteria:
 - The companion runtime refuses unsigned or tampered commands.

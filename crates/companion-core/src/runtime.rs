@@ -49,27 +49,71 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             .armed_session
             .clone()
             .ok_or(RuntimeError::SessionNotArmed)?;
-        
-        // V2 Requirement: EVERY command must be signed by the server key.
-        verify_command_signature(command, &session.server_public_key)?;
+
+        if let Err(error) = verify_command_signature(command, &session.server_public_key) {
+            self.devices.stop_all(&session.device_id);
+            self.publish_terminal_event(
+                &session,
+                command.sequence,
+                "stopped",
+                Some("invalid-signature"),
+                "invalid command signature",
+            );
+            return Err(RuntimeError::Crypto(error));
+        }
 
         if command.action == "stop-all" {
             self.devices.stop_all(&session.device_id);
-            return Ok(self.emit(command, "stopped", "stopped", 0.0, Some("panic-stop")));
+            return Ok(self.publish_terminal_event(
+                &session,
+                command.sequence,
+                "stopped",
+                None,
+                "server stop-all",
+            ));
         }
         if command.action == "heartbeat" {
             self.last_heartbeat_at = Some(SystemTime::now());
-            return Ok(self.emit(command, "ack", "heartbeat-received", 0.0, None));
+            let event = self.emit(command, "ack", "heartbeat-received", 0.0, None, None);
+            self.relay.publish(event.clone());
+            return Ok(event);
         }
         if command.intensity > session.max_intensity
             || command.duration_ms > session.max_duration_ms
         {
             self.devices.stop_all(&session.device_id);
+            self.publish_terminal_event(
+                &session,
+                command.sequence,
+                "stopped",
+                Some("out-of-bounds"),
+                "command exceeds current session limits",
+            );
             return Err(RuntimeError::OutOfBounds);
         }
-        let payload = decrypt_command_payload(command, &session.session_key)?;
+        let payload = match decrypt_command_payload(command, &session.session_key) {
+            Ok(payload) => payload,
+            Err(error) => {
+                self.devices.stop_all(&session.device_id);
+                self.publish_terminal_event(
+                    &session,
+                    command.sequence,
+                    "stopped",
+                    Some("invalid-payload"),
+                    "command payload rejected",
+                );
+                return Err(RuntimeError::Crypto(error));
+            }
+        };
         if payload.expires_at <= rfc3339_now() {
             self.devices.stop_all(&session.device_id);
+            self.publish_terminal_event(
+                &session,
+                command.sequence,
+                "stopped",
+                Some("expired-command"),
+                "command expired",
+            );
             return Err(RuntimeError::Expired);
         }
         self.devices.apply(
@@ -78,7 +122,7 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             payload.duration_ms,
             &payload.pattern_id,
         );
-        let event = self.emit(command, "ack", "command-accepted", 25.0, None);
+        let event = self.emit(command, "ack", "command-accepted", 25.0, None, None);
         self.relay.publish(event.clone());
         Ok(event)
     }
@@ -86,24 +130,20 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
     pub fn check_safety(&mut self) -> Result<(), RuntimeError> {
         let session = self
             .armed_session
-            .as_ref()
+            .clone()
             .ok_or(RuntimeError::SessionNotArmed)?;
         let last_hb = self
             .last_heartbeat_at
             .ok_or(RuntimeError::SessionNotArmed)?;
         if last_hb.elapsed().unwrap_or(Duration::from_secs(999)) > Duration::from_millis(500) {
             self.devices.stop_all(&session.device_id);
-            let event = TelemetryEvent {
-                session_id: session.session_id.clone(),
-                sequence: 0,
-                status: "stopped".to_string(),
-                executed_at: rfc3339_now(),
-                device_state: "stopped".to_string(),
-                latency_ms: 0.0,
-                error_code: Some("heartbeat-timeout".to_string()),
-                stop_reason: Some("autonomous-heartbeat-timeout".to_string()),
-            };
-            self.relay.publish(event);
+            self.publish_terminal_event(
+                &session,
+                0,
+                "stopped",
+                Some("heartbeat-timeout"),
+                "autonomous-heartbeat-timeout",
+            );
             return Err(RuntimeError::Expired);
         }
         Ok(())
@@ -115,18 +155,7 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             .clone()
             .ok_or(RuntimeError::SessionNotArmed)?;
         self.devices.stop_all(&session.device_id);
-        let event = TelemetryEvent {
-            session_id: session.session_id,
-            sequence: 0,
-            status: "stopped".to_string(),
-            executed_at: rfc3339_now(),
-            device_state: "stopped".to_string(),
-            latency_ms: 0.0,
-            error_code: None,
-            stop_reason: Some(reason.to_string()),
-        };
-        self.relay.publish(event.clone());
-        Ok(event)
+        Ok(self.publish_terminal_event(&session, 0, "stopped", None, reason))
     }
 
     pub fn background_permission_lost(&mut self) -> Result<TelemetryEvent, RuntimeError> {
@@ -135,18 +164,13 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             .clone()
             .ok_or(RuntimeError::SessionNotArmed)?;
         self.devices.background_permission_lost(&session.device_id);
-        let event = TelemetryEvent {
-            session_id: session.session_id,
-            sequence: 0,
-            status: "stopped".to_string(),
-            executed_at: rfc3339_now(),
-            device_state: "background-permission-lost".to_string(),
-            latency_ms: 0.0,
-            error_code: None,
-            stop_reason: Some("background permission lost".to_string()),
-        };
-        self.relay.publish(event.clone());
-        Ok(event)
+        Ok(self.publish_terminal_event(
+            &session,
+            0,
+            "background-permission-lost",
+            None,
+            "background permission lost",
+        ))
     }
 
     pub fn relay_mode(&self) -> &'static str {
@@ -159,6 +183,7 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
         status: &str,
         device_state: &str,
         latency_ms: f64,
+        error_code: Option<&str>,
         stop_reason: Option<&str>,
     ) -> TelemetryEvent {
         TelemetryEvent {
@@ -168,9 +193,33 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
             executed_at: rfc3339_now(),
             device_state: device_state.to_string(),
             latency_ms,
-            error_code: None,
+            error_code: error_code.map(str::to_string),
             stop_reason: stop_reason.map(str::to_string),
         }
+    }
+
+    fn publish_terminal_event(
+        &mut self,
+        session: &ArmedSession,
+        sequence: i64,
+        device_state: &str,
+        error_code: Option<&str>,
+        stop_reason: &str,
+    ) -> TelemetryEvent {
+        let event = TelemetryEvent {
+            session_id: session.session_id.clone(),
+            sequence,
+            status: "stopped".to_string(),
+            executed_at: rfc3339_now(),
+            device_state: device_state.to_string(),
+            latency_ms: 0.0,
+            error_code: error_code.map(str::to_string),
+            stop_reason: Some(stop_reason.to_string()),
+        };
+        self.armed_session = None;
+        self.last_heartbeat_at = None;
+        self.relay.publish(event.clone());
+        event
     }
 }
 
@@ -185,7 +234,7 @@ mod tests {
     use aes_gcm::aead::{Aead, KeyInit};
     use aes_gcm::{Aes256Gcm, Nonce};
     use base64::Engine;
-    use ed25519_dalek::{SigningKey, Signer};
+    use ed25519_dalek::{Signer, SigningKey};
     use serde_json::to_vec;
 
     use super::*;
@@ -229,14 +278,17 @@ mod tests {
             max_intensity: 88,
             max_duration_ms: 12_000,
         });
-        
+
         runtime.check_safety().expect("initially safe");
         runtime.last_heartbeat_at = Some(SystemTime::now() - Duration::from_millis(600));
 
         let res = runtime.check_safety();
         assert!(res.is_err());
         assert_eq!(relay.events().len(), 1);
-        assert_eq!(relay.events()[0].error_code, Some("heartbeat-timeout".to_string()));
+        assert_eq!(
+            relay.events()[0].error_code,
+            Some("heartbeat-timeout".to_string())
+        );
     }
 
     #[test]
@@ -265,11 +317,151 @@ mod tests {
         assert_eq!(relay.events().len(), 1);
     }
 
+    #[test]
+    fn runtime_rejects_invalid_signature_and_stops_session() {
+        let relay = MockRelayTransport::new("cloudflare-realtime");
+        let devices = MockDeviceBackend::with_device("device_demo");
+        let mut runtime = CompanionRuntime::new(relay.clone(), devices);
+        let session_key = [7u8; 32];
+        let expected_signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let wrong_signing_key = SigningKey::from_bytes(&[2u8; 32]);
+
+        runtime.arm_session(ArmedSession {
+            session_id: "session_demo".to_string(),
+            device_id: "device_demo".to_string(),
+            session_key,
+            server_public_key: expected_signing_key.verifying_key().to_bytes(),
+            max_intensity: 88,
+            max_duration_ms: 12_000,
+        });
+
+        let command = encrypt_and_sign_command(&wrong_signing_key, &session_key, 42, 8_400);
+        let error = runtime
+            .apply_command(&command)
+            .expect_err("invalid signature should fail");
+        assert!(matches!(
+            error,
+            RuntimeError::Crypto(CryptoError::InvalidSignature)
+        ));
+        assert_eq!(relay.events().len(), 1);
+        assert_eq!(relay.events()[0].status, "stopped");
+        assert_eq!(
+            relay.events()[0].error_code,
+            Some("invalid-signature".to_string())
+        );
+        assert_eq!(
+            relay.events()[0].stop_reason,
+            Some("invalid command signature".to_string())
+        );
+    }
+
+    #[test]
+    fn runtime_rejects_expired_command_and_emits_terminal_telemetry() {
+        let relay = MockRelayTransport::new("cloudflare-realtime");
+        let devices = MockDeviceBackend::with_device("device_demo");
+        let mut runtime = CompanionRuntime::new(relay.clone(), devices);
+        let session_key = [7u8; 32];
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+
+        runtime.arm_session(ArmedSession {
+            session_id: "session_demo".to_string(),
+            device_id: "device_demo".to_string(),
+            session_key,
+            server_public_key: signing_key.verifying_key().to_bytes(),
+            max_intensity: 88,
+            max_duration_ms: 12_000,
+        });
+
+        let command = encrypt_and_sign_command_with_expiry(
+            &signing_key,
+            &session_key,
+            42,
+            8_400,
+            SystemTime::now() - Duration::from_secs(1),
+        );
+        let error = runtime
+            .apply_command(&command)
+            .expect_err("expired command should fail");
+        assert!(matches!(error, RuntimeError::Expired));
+        assert_eq!(relay.events().len(), 1);
+        assert_eq!(
+            relay.events()[0].error_code,
+            Some("expired-command".to_string())
+        );
+        assert_eq!(
+            relay.events()[0].stop_reason,
+            Some("command expired".to_string())
+        );
+    }
+
+    #[test]
+    fn runtime_delivers_stop_all_telemetry() {
+        let relay = MockRelayTransport::new("cloudflare-realtime");
+        let devices = MockDeviceBackend::with_device("device_demo");
+        let mut runtime = CompanionRuntime::new(relay.clone(), devices);
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+
+        runtime.arm_session(ArmedSession {
+            session_id: "session_demo".to_string(),
+            device_id: "device_demo".to_string(),
+            session_key: [7u8; 32],
+            server_public_key: signing_key.verifying_key().to_bytes(),
+            max_intensity: 88,
+            max_duration_ms: 12_000,
+        });
+
+        let command = sign_command(
+            &signing_key,
+            ControlCommand {
+                session_id: "session_demo".to_string(),
+                sequence: 3,
+                device_id: "device_demo".to_string(),
+                action: "stop-all".to_string(),
+                intensity: 0,
+                duration_ms: 0,
+                pattern_id: String::new(),
+                nonce: String::new(),
+                issued_at: "2026-03-14T03:00:00Z".to_string(),
+                expires_at: "2026-03-14T03:00:00Z".to_string(),
+                ciphertext: String::new(),
+                signature: String::new(),
+            },
+        );
+
+        let event = runtime
+            .apply_command(&command)
+            .expect("stop-all should publish telemetry");
+        assert_eq!(event.status, "stopped");
+        assert_eq!(event.sequence, 3);
+        assert_eq!(relay.events().len(), 1);
+        assert_eq!(relay.events()[0], event);
+        assert!(matches!(
+            runtime.apply_command(&command),
+            Err(RuntimeError::SessionNotArmed)
+        ));
+    }
+
     fn encrypt_and_sign_command(
         signing_key: &SigningKey,
         session_key: &[u8; 32],
         intensity: u8,
         duration_ms: u64,
+    ) -> ControlCommand {
+        encrypt_and_sign_command_with_expiry(
+            signing_key,
+            session_key,
+            intensity,
+            duration_ms,
+            SystemTime::now() + Duration::from_secs(60),
+        )
+    }
+
+    fn encrypt_and_sign_command_with_expiry(
+        signing_key: &SigningKey,
+        session_key: &[u8; 32],
+        intensity: u8,
+        duration_ms: u64,
+        expires_at: SystemTime,
     ) -> ControlCommand {
         let payload = CommandPayload {
             session_id: "session_demo".to_string(),
@@ -279,10 +471,7 @@ mod tests {
             duration_ms,
             pattern_id: "pulse-wave".to_string(),
             issued_at: "2026-03-14T03:00:00Z".to_string(),
-            expires_at: humantime::format_rfc3339_seconds(
-                SystemTime::now() + Duration::from_secs(60),
-            )
-            .to_string(),
+            expires_at: humantime::format_rfc3339_seconds(expires_at).to_string(),
         };
         let cipher = Aes256Gcm::new_from_slice(session_key).expect("cipher");
         let nonce = [1u8; 12];
@@ -292,22 +481,26 @@ mod tests {
                 to_vec(&payload).expect("payload").as_ref(),
             )
             .expect("encrypt");
-        
-        let mut command = ControlCommand {
-            session_id: "session_demo".to_string(),
-            sequence: 1,
-            device_id: "device_demo".to_string(),
-            action: "apply".to_string(),
-            intensity,
-            duration_ms,
-            pattern_id: "pulse-wave".to_string(),
-            nonce: BASE64.encode(nonce),
-            issued_at: payload.issued_at,
-            expires_at: payload.expires_at,
-            ciphertext: BASE64.encode(ciphertext),
-            signature: String::new(),
-        };
+        sign_command(
+            signing_key,
+            ControlCommand {
+                session_id: "session_demo".to_string(),
+                sequence: 1,
+                device_id: "device_demo".to_string(),
+                action: "apply".to_string(),
+                intensity,
+                duration_ms,
+                pattern_id: "pulse-wave".to_string(),
+                nonce: BASE64.encode(nonce),
+                issued_at: payload.issued_at,
+                expires_at: payload.expires_at,
+                ciphertext: BASE64.encode(ciphertext),
+                signature: String::new(),
+            },
+        )
+    }
 
+    fn sign_command(signing_key: &SigningKey, mut command: ControlCommand) -> ControlCommand {
         let canonical = crate::crypto::canonical_command(&command).expect("canonical");
         let sig = signing_key.sign(&canonical);
         command.signature = BASE64.encode(sig.to_bytes());
