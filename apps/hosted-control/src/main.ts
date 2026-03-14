@@ -6,8 +6,18 @@ import {
 } from "@taas/domain-sdk";
 import { mountControlWidget } from "@taas/embed-sdk";
 
+function resolveApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return "http://localhost:8080";
+  }
+  if (window.location.hostname === "localhost" && window.location.port !== "8080") {
+    return "http://localhost:8080";
+  }
+  return window.location.origin;
+}
+
 const client = new TaasClient({
-  baseUrl: "http://localhost:8080"
+  baseUrl: resolveApiBaseUrl()
 });
 
 let latestEvent: InboundEventRequest | null = null;
@@ -110,4 +120,3 @@ function render(): void {
 }
 
 render();
-

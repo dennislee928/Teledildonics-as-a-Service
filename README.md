@@ -44,6 +44,16 @@ npm test
 cargo test -p companion-core
 ```
 
+## Deploying a Single Public Demo
+
+The repository now includes a root `Dockerfile` that builds the Go control API and the two browser demos into one container. When the API starts with `STATIC_ROOT` pointing at the copied app directory, it serves:
+
+- `/demo/hosted-control/`
+- `/demo/creator-console/`
+- `/healthz`
+
+See [`docs/free-platform-deployment.md`](./docs/free-platform-deployment.md) for platform-specific notes across Koyeb, Hugging Face Spaces, Serv00, Back4App, Alwaysdata, and Deta Space.
+
 ## Demo IDs
 
 The Go API seeds a deterministic demo workspace and creator:

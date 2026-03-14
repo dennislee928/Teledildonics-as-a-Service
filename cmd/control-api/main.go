@@ -18,6 +18,10 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
+	staticRoot := os.Getenv("STATIC_ROOT")
+	if staticRoot == "" {
+		staticRoot = "."
+	}
 
 	memoryStore := store.NewMemoryStore()
 	inMemoryRelay := relay.NewInMemoryRelay()
@@ -37,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := api.NewServer(serviceLayer)
+	server := api.NewServer(serviceLayer, staticRoot)
 	logger.Info("control api listening", slog.String("addr", addr))
 	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
 		logger.Error("control api stopped", slog.Any("error", err))

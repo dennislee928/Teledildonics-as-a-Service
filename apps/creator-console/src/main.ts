@@ -6,8 +6,18 @@ import {
   type TelemetryEvent
 } from "@taas/domain-sdk";
 
+function resolveApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return "http://localhost:8080";
+  }
+  if (window.location.hostname === "localhost" && window.location.port !== "8080") {
+    return "http://localhost:8080";
+  }
+  return window.location.origin;
+}
+
 const client = new TaasClient({
-  baseUrl: "http://localhost:8080"
+  baseUrl: resolveApiBaseUrl()
 });
 
 let currentSession: Session | null = null;

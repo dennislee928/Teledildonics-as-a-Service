@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,15 +17,20 @@ import (
 )
 
 type Server struct {
-	service *service.ControlService
+	service    *service.ControlService
+	staticRoot string
 }
 
-func NewServer(service *service.ControlService) *Server {
-	return &Server{service: service}
+func NewServer(service *service.ControlService, staticRoot string) *Server {
+	return &Server{
+		service:    service,
+		staticRoot: staticRoot,
+	}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", s.handleLandingPage)
 	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -33,7 +40,63 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/sessions/", s.handleSessionRoutes)
 	mux.HandleFunc("/v1/rulesets", s.handleCreateRuleSet)
 	mux.HandleFunc("/v1/rulesets/", s.handleUpdateRuleSet)
+	s.registerStaticApps(mux)
 	return withCORS(mux)
+}
+
+func (s *Server) handleLandingPage(writer http.ResponseWriter, request *http.Request) {
+	if request.URL.Path != "/" {
+		http.NotFound(writer, request)
+		return
+	}
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = fmt.Fprint(writer, `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TaaS Control API</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Avenir Next", "Segoe UI", sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, rgba(240,124,62,.24), transparent 28%), linear-gradient(180deg, #0b1016, #141d28); color: #f3f6fb; }
+      main { width: min(840px, 92vw); padding: 32px; border-radius: 28px; background: rgba(14,18,25,.82); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 80px rgba(0,0,0,.36); }
+      a { color: #89d6be; }
+      ul { line-height: 1.8; }
+      code { background: rgba(255,255,255,.08); padding: 2px 8px; border-radius: 999px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>TaaS control plane is online.</p>
+      <h1>Secure control, local relay, deployable demos.</h1>
+      <ul>
+        <li><a href="/healthz">Health check</a></li>
+        <li><a href="/demo/hosted-control/">Hosted control demo</a></li>
+        <li><a href="/demo/creator-console/">Creator console demo</a></li>
+      </ul>
+      <p>Seeded IDs: <code>ws_demo</code>, <code>cr_demo</code>, <code>bridge_demo</code>, <code>device_demo</code>, <code>rule_demo</code>.</p>
+    </main>
+  </body>
+</html>`)
+}
+
+func (s *Server) registerStaticApps(mux *http.ServeMux) {
+	for _, route := range []struct {
+		prefix string
+		dir    string
+	}{
+		{prefix: "/demo/creator-console/", dir: filepath.Join(s.staticRoot, "apps", "creator-console")},
+		{prefix: "/demo/hosted-control/", dir: filepath.Join(s.staticRoot, "apps", "hosted-control")},
+	} {
+		if _, err := os.Stat(route.dir); err != nil {
+			continue
+		}
+		fileServer := http.FileServer(http.Dir(route.dir))
+		mux.Handle(route.prefix, http.StripPrefix(route.prefix, fileServer))
+		mux.HandleFunc(strings.TrimSuffix(route.prefix, "/"), func(writer http.ResponseWriter, request *http.Request) {
+			http.Redirect(writer, request, request.URL.Path+"/", http.StatusPermanentRedirect)
+		})
+	}
 }
 
 func (s *Server) handleInboundEvents(writer http.ResponseWriter, request *http.Request) {

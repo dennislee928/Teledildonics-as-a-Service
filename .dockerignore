@@ -1,0 +1,9 @@
+.git
+node_modules
+target
+dist
+.DS_Store
+.env
+.env.local
+tmp
+
