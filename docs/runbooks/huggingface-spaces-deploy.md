@@ -94,6 +94,10 @@ The script will:
    - `app_port: 8080`
 4. force-push the staged repo to the Space repository
 
+Safety note:
+
+- local `.env` files, `.github/`, docs, and deployment-only helpers are excluded from the staged Space push
+
 ## Useful environment overrides
 
 ```bash

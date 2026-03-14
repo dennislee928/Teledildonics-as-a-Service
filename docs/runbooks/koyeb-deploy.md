@@ -107,6 +107,43 @@ KOYEB_GIT_BRANCH=main \
 scripts/deploy-koyeb.sh
 ```
 
+## GitHub Actions auto-deploy
+
+The repository includes:
+
+- [deploy-koyeb.yml](/Users/dennis_leedennis_lee/Documents/GitHub/Teledildonics-as-a-Service/.github/workflows/deploy-koyeb.yml)
+
+Set these in GitHub before enabling it:
+
+- Repository secret:
+  - `KOYEB_TOKEN`
+- Repository variables:
+  - optionally `KOYEB_APP_NAME`
+  - optionally `KOYEB_SERVICE_NAME`
+  - optionally `KOYEB_GIT_BRANCH`
+  - optionally `KOYEB_APP_PORT`
+  - optionally `KOYEB_STATIC_ROOT`
+  - optionally `KOYEB_WAIT_TIMEOUT`
+  - optionally `KOYEB_ORGANIZATION`
+
+The workflow derives `KOYEB_GIT_REPO` from the current GitHub repository and defaults the branch to `github.ref_name` when no repo variable is set. It runs on pushes to `main` that touch deploy-relevant files, and also supports manual dispatch.
+
+When you use `Run workflow` in the GitHub Actions UI, you can optionally override these values for that one run:
+
+- `koyeb_app_name`
+- `koyeb_service_name`
+- `koyeb_git_branch`
+- `koyeb_git_branch_custom`
+- `koyeb_dry_run`
+
+Notes:
+
+- `koyeb_git_branch` is now a fixed choice list for common branches.
+- `koyeb_git_branch_custom` wins if you need an uncommon branch name.
+- `koyeb_dry_run=true` resolves and prints the exact Koyeb commands without calling the Koyeb API or requiring a token.
+
+That gives you a quick way to deploy the same repo to a different Koyeb app, switch tracked branches, or sanity-check the deploy plan without changing repository-wide variables.
+
 ## Manifest file
 
 The repository-local manifest lives at the root:
@@ -124,10 +161,10 @@ You can keep repo-wide defaults there and override them per machine using `.env.
 
 ## What the script does under the hood
 
-For a first deploy it uses the same shape Koyeb documents for `koyeb app init`, but with the repo Dockerfile:
+For a first deploy it uses the same shape Koyeb documents for `koyeb apps init`, but with the repo Dockerfile:
 
 ```bash
-koyeb app init taas-demo \
+koyeb apps init taas-demo \
   --git github.com/your-user/Teledildonics-as-a-Service \
   --git-branch main \
   --git-builder docker \

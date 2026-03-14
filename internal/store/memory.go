@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ type MemoryStore struct {
 	grants        map[string]domain.ControlGrant
 	usage         []domain.UsageLedgerEntry
 	audit         []domain.AuditEvent
+	telemetry     []domain.TelemetryEvent
 	idempotency   map[string]time.Time
 	sessionEvents map[string][]time.Time
 }
@@ -201,6 +203,12 @@ func (s *MemoryStore) AddAudit(entry domain.AuditEvent) {
 	s.audit = append(s.audit, entry)
 }
 
+func (s *MemoryStore) AddTelemetry(entry domain.TelemetryEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.telemetry = append(s.telemetry, entry)
+}
+
 func (s *MemoryStore) ReserveIdempotency(workspaceID, key string, occurredAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -234,4 +242,126 @@ func (s *MemoryStore) AppendSessionEvent(sessionID string, occurredAt time.Time,
 	}
 	s.sessionEvents[sessionID] = filtered
 	return len(filtered)
+}
+
+func (s *MemoryStore) ListBridges(workspaceID, creatorID string) []domain.DeviceBridge {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bridges := make([]domain.DeviceBridge, 0, len(s.bridges))
+	for _, bridge := range s.bridges {
+		if bridge.WorkspaceID == workspaceID && bridge.CreatorID == creatorID {
+			bridges = append(bridges, bridge)
+		}
+	}
+	sort.Slice(bridges, func(i, j int) bool {
+		return bridges[i].CreatedAt.After(bridges[j].CreatedAt)
+	})
+	return bridges
+}
+
+func (s *MemoryStore) ListDevices(creatorID string) []domain.Device {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	devices := make([]domain.Device, 0, len(s.devices))
+	for _, device := range s.devices {
+		if device.CreatorID == creatorID {
+			devices = append(devices, device)
+		}
+	}
+	sort.Slice(devices, func(i, j int) bool {
+		return devices[i].UpdatedAt.After(devices[j].UpdatedAt)
+	})
+	return devices
+}
+
+func (s *MemoryStore) ListRuleSets(workspaceID, creatorID string) []domain.RuleSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ruleSets := make([]domain.RuleSet, 0, len(s.rulesets))
+	for _, ruleSet := range s.rulesets {
+		if ruleSet.WorkspaceID == workspaceID && ruleSet.CreatorID == creatorID {
+			ruleSets = append(ruleSets, ruleSet)
+		}
+	}
+	sort.Slice(ruleSets, func(i, j int) bool {
+		return ruleSets[i].UpdatedAt.After(ruleSets[j].UpdatedAt)
+	})
+	return ruleSets
+}
+
+func (s *MemoryStore) ListSessions(workspaceID, creatorID string) []domain.Session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sessions := make([]domain.Session, 0, len(s.sessions))
+	for _, session := range s.sessions {
+		if session.WorkspaceID == workspaceID && session.CreatorID == creatorID {
+			sessions = append(sessions, session)
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+	return sessions
+}
+
+func (s *MemoryStore) ListUsage(workspaceID string, limit int) []domain.UsageLedgerEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	usage := make([]domain.UsageLedgerEntry, 0, len(s.usage))
+	for _, entry := range s.usage {
+		if entry.WorkspaceID == workspaceID {
+			usage = append(usage, entry)
+		}
+	}
+	sort.Slice(usage, func(i, j int) bool {
+		return usage[i].OccurredAt.After(usage[j].OccurredAt)
+	})
+	if limit > 0 && len(usage) > limit {
+		return append([]domain.UsageLedgerEntry(nil), usage[:limit]...)
+	}
+	return usage
+}
+
+func (s *MemoryStore) ListAudit(workspaceID, creatorID string, limit int) []domain.AuditEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	audit := make([]domain.AuditEvent, 0, len(s.audit))
+	for _, entry := range s.audit {
+		if entry.WorkspaceID == workspaceID && (creatorID == "" || entry.CreatorID == creatorID) {
+			audit = append(audit, entry)
+		}
+	}
+	sort.Slice(audit, func(i, j int) bool {
+		return audit[i].OccurredAt.After(audit[j].OccurredAt)
+	})
+	if limit > 0 && len(audit) > limit {
+		return append([]domain.AuditEvent(nil), audit[:limit]...)
+	}
+	return audit
+}
+
+func (s *MemoryStore) ListTelemetry(sessionIDs []string, limit int) []domain.TelemetryEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	allowed := make(map[string]struct{}, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		allowed[sessionID] = struct{}{}
+	}
+	events := make([]domain.TelemetryEvent, 0, len(s.telemetry))
+	for _, entry := range s.telemetry {
+		if len(allowed) == 0 {
+			events = append(events, entry)
+			continue
+		}
+		if _, ok := allowed[entry.SessionID]; ok {
+			events = append(events, entry)
+		}
+	}
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].ExecutedAt.After(events[j].ExecutedAt)
+	})
+	if limit > 0 && len(events) > limit {
+		return append([]domain.TelemetryEvent(nil), events[:limit]...)
+	}
+	return events
 }

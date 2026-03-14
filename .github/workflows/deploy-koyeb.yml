@@ -1,0 +1,109 @@
+name: Deploy Koyeb Demo
+
+run-name: >-
+  Deploy Koyeb Demo
+  (${{ github.event.inputs.koyeb_app_name || vars.KOYEB_APP_NAME || 'taas-demo' }}
+  @ ${{ github.event.inputs.koyeb_git_branch_custom || github.event.inputs.koyeb_git_branch || vars.KOYEB_GIT_BRANCH || github.ref_name }})
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - go.mod
+      - go.sum
+      - package.json
+      - package-lock.json
+      - tsconfig.base.json
+      - cmd/**
+      - internal/**
+      - packages/**
+      - apps/creator-console/**
+      - apps/hosted-control/**
+      - scripts/deploy-koyeb.sh
+      - koyeb.yaml
+      - .github/workflows/deploy-koyeb.yml
+  workflow_dispatch:
+    inputs:
+      koyeb_app_name:
+        description: Optional Koyeb app name override for this run
+        required: false
+        type: string
+      koyeb_service_name:
+        description: Optional Koyeb service name override for this run
+        required: false
+        type: string
+      koyeb_git_branch:
+        description: Common Git branch that Koyeb should deploy or track
+        required: false
+        default: main
+        type: choice
+        options:
+          - main
+          - staging
+          - develop
+      koyeb_git_branch_custom:
+        description: Optional custom branch override; wins over the choice above
+        required: false
+        type: string
+      koyeb_dry_run:
+        description: Resolve and print deploy commands without calling Koyeb
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-koyeb
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      KOYEB_APP_NAME: ${{ github.event.inputs.koyeb_app_name || vars.KOYEB_APP_NAME }}
+      KOYEB_SERVICE_NAME: ${{ github.event.inputs.koyeb_service_name || vars.KOYEB_SERVICE_NAME }}
+      KOYEB_GIT_REPO: github.com/${{ github.repository }}
+      KOYEB_GIT_BRANCH: ${{ github.event.inputs.koyeb_git_branch_custom || github.event.inputs.koyeb_git_branch || vars.KOYEB_GIT_BRANCH || github.ref_name }}
+      KOYEB_APP_PORT: ${{ vars.KOYEB_APP_PORT }}
+      KOYEB_STATIC_ROOT: ${{ vars.KOYEB_STATIC_ROOT }}
+      KOYEB_WAIT_TIMEOUT: ${{ vars.KOYEB_WAIT_TIMEOUT }}
+      KOYEB_ORGANIZATION: ${{ vars.KOYEB_ORGANIZATION }}
+      KOYEB_DRY_RUN: ${{ github.event.inputs.koyeb_dry_run || 'false' }}
+      KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Koyeb CLI
+        if: ${{ github.event.inputs.koyeb_dry_run != 'true' }}
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
+          echo "$HOME/.koyeb/bin" >> "$GITHUB_PATH"
+
+      - name: Show Koyeb CLI version
+        if: ${{ github.event.inputs.koyeb_dry_run != 'true' }}
+        run: koyeb version
+
+      - name: Validate required deployment configuration
+        run: |
+          test -n "${KOYEB_GIT_REPO}" || { echo "KOYEB_GIT_REPO could not be derived"; exit 1; }
+          test -n "${KOYEB_GIT_BRANCH}" || { echo "KOYEB_GIT_BRANCH is required"; exit 1; }
+          if [[ "${KOYEB_DRY_RUN}" != "true" ]]; then
+            test -n "${KOYEB_TOKEN}" || { echo "KOYEB_TOKEN repository secret is required"; exit 1; }
+          fi
+
+      - name: Print resolved deployment target
+        run: |
+          echo "KOYEB_APP_NAME=${KOYEB_APP_NAME:-<default from script or manifest>}"
+          echo "KOYEB_SERVICE_NAME=${KOYEB_SERVICE_NAME:-<default from script or manifest>}"
+          echo "KOYEB_GIT_REPO=${KOYEB_GIT_REPO}"
+          echo "KOYEB_GIT_BRANCH=${KOYEB_GIT_BRANCH}"
+          echo "KOYEB_DRY_RUN=${KOYEB_DRY_RUN}"
+
+      - name: Deploy to Koyeb
+        run: scripts/deploy-koyeb.sh

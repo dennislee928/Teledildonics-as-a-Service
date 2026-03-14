@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HF_SPACE_ID="${HF_SPACE_ID:-}"
-HF_SPACE_BRANCH="${HF_SPACE_BRANCH:-main}"
-HF_SPACE_TITLE="${HF_SPACE_TITLE:-TaaS Demo}"
-HF_SPACE_EMOJI="${HF_SPACE_EMOJI:-🛰️}"
-HF_SPACE_COLOR_FROM="${HF_SPACE_COLOR_FROM:-red}"
-HF_SPACE_COLOR_TO="${HF_SPACE_COLOR_TO:-orange}"
-HF_SPACE_PRIVATE="${HF_SPACE_PRIVATE:-false}"
-HF_SPACE_STAGE_DIR="${HF_SPACE_STAGE_DIR:-.tmp-deploy/hf-space}"
-HF_USERNAME="${HF_USERNAME:-}"
-HF_TOKEN="${HF_TOKEN:-}"
+INPUT_HF_SPACE_ID="${HF_SPACE_ID:-}"
+INPUT_HF_SPACE_BRANCH="${HF_SPACE_BRANCH:-}"
+INPUT_HF_SPACE_TITLE="${HF_SPACE_TITLE:-}"
+INPUT_HF_SPACE_EMOJI="${HF_SPACE_EMOJI:-}"
+INPUT_HF_SPACE_COLOR_FROM="${HF_SPACE_COLOR_FROM:-}"
+INPUT_HF_SPACE_COLOR_TO="${HF_SPACE_COLOR_TO:-}"
+INPUT_HF_SPACE_PRIVATE="${HF_SPACE_PRIVATE:-}"
+INPUT_HF_SPACE_STAGE_DIR="${HF_SPACE_STAGE_DIR:-}"
+INPUT_HF_USERNAME="${HF_USERNAME:-}"
+INPUT_HF_TOKEN="${HF_TOKEN:-}"
+
+HF_SPACE_ID="${INPUT_HF_SPACE_ID}"
+HF_SPACE_BRANCH="${INPUT_HF_SPACE_BRANCH:-main}"
+HF_SPACE_TITLE="${INPUT_HF_SPACE_TITLE:-TaaS Demo}"
+HF_SPACE_EMOJI="${INPUT_HF_SPACE_EMOJI:-🛰️}"
+HF_SPACE_COLOR_FROM="${INPUT_HF_SPACE_COLOR_FROM:-red}"
+HF_SPACE_COLOR_TO="${INPUT_HF_SPACE_COLOR_TO:-orange}"
+HF_SPACE_PRIVATE="${INPUT_HF_SPACE_PRIVATE:-false}"
+HF_SPACE_STAGE_DIR="${INPUT_HF_SPACE_STAGE_DIR:-.tmp-deploy/hf-space}"
+HF_USERNAME="${INPUT_HF_USERNAME}"
+HF_TOKEN="${INPUT_HF_TOKEN}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -42,6 +53,39 @@ load_shared_env() {
   fi
 }
 
+restore_explicit_env() {
+  if [[ -n "$INPUT_HF_SPACE_ID" ]]; then
+    HF_SPACE_ID="$INPUT_HF_SPACE_ID"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_BRANCH" ]]; then
+    HF_SPACE_BRANCH="$INPUT_HF_SPACE_BRANCH"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_TITLE" ]]; then
+    HF_SPACE_TITLE="$INPUT_HF_SPACE_TITLE"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_EMOJI" ]]; then
+    HF_SPACE_EMOJI="$INPUT_HF_SPACE_EMOJI"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_COLOR_FROM" ]]; then
+    HF_SPACE_COLOR_FROM="$INPUT_HF_SPACE_COLOR_FROM"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_COLOR_TO" ]]; then
+    HF_SPACE_COLOR_TO="$INPUT_HF_SPACE_COLOR_TO"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_PRIVATE" ]]; then
+    HF_SPACE_PRIVATE="$INPUT_HF_SPACE_PRIVATE"
+  fi
+  if [[ -n "$INPUT_HF_SPACE_STAGE_DIR" ]]; then
+    HF_SPACE_STAGE_DIR="$INPUT_HF_SPACE_STAGE_DIR"
+  fi
+  if [[ -n "$INPUT_HF_USERNAME" ]]; then
+    HF_USERNAME="$INPUT_HF_USERNAME"
+  fi
+  if [[ -n "$INPUT_HF_TOKEN" ]]; then
+    HF_TOKEN="$INPUT_HF_TOKEN"
+  fi
+}
+
 apply_defaults() {
   HF_SPACE_BRANCH="${HF_SPACE_BRANCH:-main}"
   HF_SPACE_TITLE="${HF_SPACE_TITLE:-TaaS Demo}"
@@ -57,6 +101,7 @@ ensure_prereqs() {
   require_cmd hf
   require_cmd rsync
   load_shared_env
+  restore_explicit_env
   apply_defaults
 
   if [[ -z "$HF_SPACE_ID" ]]; then
@@ -83,10 +128,14 @@ stage_repo() {
 
   rsync -a \
     --exclude '.git/' \
+    --exclude '.github/' \
+    --exclude '.env*' \
     --exclude 'node_modules/' \
     --exclude 'target/' \
     --exclude '.tmp-deploy/' \
     --exclude 'docs/' \
+    --exclude 'scripts/' \
+    --exclude 'koyeb.yaml' \
     --exclude 'plan.md' \
     --exclude 'Cargo.lock' \
     ./ "$stage_root/"

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,6 +57,27 @@ func (m *Metrics) IncRuleRejection() {
 
 func (m *Metrics) IncPanicStop() {
 	atomic.AddInt64(&m.panicStops, 1)
+}
+
+func (m *Metrics) Snapshot() domain.MetricsSnapshot {
+	m.mu.Lock()
+	latencies := append([]float64(nil), m.ackLatenciesMS...)
+	perRegion := make(map[string]int64, len(m.perRegionFailures))
+	for key, value := range m.perRegionFailures {
+		perRegion[key] = value
+	}
+	m.mu.Unlock()
+
+	sort.Float64s(latencies)
+	return domain.MetricsSnapshot{
+		AckCount:          len(latencies),
+		AckP50MS:          percentile(latencies, 0.50),
+		AckP95MS:          percentile(latencies, 0.95),
+		WebhookFailures:   atomic.LoadInt64(&m.webhookFailures),
+		RuleRejections:    atomic.LoadInt64(&m.ruleRejections),
+		PanicStops:        atomic.LoadInt64(&m.panicStops),
+		PerRegionFailures: perRegion,
+	}
 }
 
 type ControlService struct {
@@ -533,6 +555,110 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 	return command, usage, nil
 }
 
+func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string, request domain.IngestTelemetryRequest) (domain.TelemetryEvent, error) {
+	session, err := s.store.GetSession(sessionID)
+	if err != nil {
+		return domain.TelemetryEvent{}, err
+	}
+	if request.Status == "" {
+		return domain.TelemetryEvent{}, errors.New("telemetry status is required")
+	}
+	now := s.now()
+	executedAt := request.ExecutedAt
+	if executedAt.IsZero() {
+		executedAt = now
+	}
+	sequence := request.Sequence
+	if sequence == 0 {
+		sequence = session.Sequence
+	}
+	deviceState := request.DeviceState
+	if deviceState == "" {
+		deviceState = string(request.Status)
+	}
+	event := domain.TelemetryEvent{
+		SessionID:   sessionID,
+		Sequence:    sequence,
+		Status:      request.Status,
+		ExecutedAt:  executedAt,
+		DeviceState: deviceState,
+		LatencyMS:   request.LatencyMS,
+		ErrorCode:   request.ErrorCode,
+		StopReason:  request.StopReason,
+	}
+
+	if request.Status == domain.TelemetryAck || request.Status == domain.TelemetryExecuting {
+		if request.LatencyMS > 0 {
+			s.metrics.ObserveAckLatency(request.LatencyMS)
+		}
+	}
+
+	if request.Status == domain.TelemetryStopped || request.StopReason != "" {
+		session.Status = domain.SessionStopped
+		session.StopReason = request.StopReason
+		session.UpdatedAt = now
+		s.store.UpdateSession(session)
+		_ = s.store.RevokeGrant(session.ID, now)
+	}
+
+	s.store.AddTelemetry(event)
+	s.store.AddAudit(domain.AuditEvent{
+		ID:          s.nextID("audit"),
+		WorkspaceID: session.WorkspaceID,
+		CreatorID:   session.CreatorID,
+		SessionID:   session.ID,
+		Kind:        "telemetry.received",
+		Actor:       "companion-runtime",
+		Details: map[string]any{
+			"status":       event.Status,
+			"sequence":     event.Sequence,
+			"device_state": event.DeviceState,
+			"latency_ms":   event.LatencyMS,
+			"error_code":   event.ErrorCode,
+			"stop_reason":  event.StopReason,
+		},
+		OccurredAt: now,
+	})
+	if err := s.relay.PublishTelemetry(ctx, event); err != nil {
+		return domain.TelemetryEvent{}, err
+	}
+	return event, nil
+}
+
+func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, creatorID string) (domain.WorkspaceOverview, error) {
+	workspace, err := s.store.GetWorkspace(workspaceID)
+	if err != nil {
+		return domain.WorkspaceOverview{}, err
+	}
+	creator, err := s.store.GetCreator(creatorID)
+	if err != nil {
+		return domain.WorkspaceOverview{}, err
+	}
+	if creator.WorkspaceID != workspaceID {
+		return domain.WorkspaceOverview{}, errors.New("creator does not belong to workspace")
+	}
+
+	sessions := s.store.ListSessions(workspaceID, creatorID)
+	sessionIDs := make([]string, 0, len(sessions))
+	for _, session := range sessions {
+		sessionIDs = append(sessionIDs, session.ID)
+	}
+
+	return domain.WorkspaceOverview{
+		Workspace:       workspace,
+		Creator:         creator,
+		Bridges:         s.store.ListBridges(workspaceID, creatorID),
+		Devices:         s.store.ListDevices(creatorID),
+		RuleSets:        s.store.ListRuleSets(workspaceID, creatorID),
+		Sessions:        sessions,
+		RecentUsage:     s.store.ListUsage(workspaceID, 10),
+		RecentAudit:     s.store.ListAudit(workspaceID, creatorID, 12),
+		RecentTelemetry: s.store.ListTelemetry(sessionIDs, 12),
+		Metrics:         s.metrics.Snapshot(),
+		GeneratedAt:     s.now(),
+	}, nil
+}
+
 func (s *ControlService) SubscribeSession(sessionID string) (<-chan domain.TelemetryEvent, func()) {
 	return s.relay.Subscribe(sessionID)
 }
@@ -555,4 +681,21 @@ func minInt(values ...int) int {
 		}
 	}
 	return result
+}
+
+func percentile(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	index := int(math.Ceil(float64(len(values))*p)) - 1
+	if index < 0 {
+		index = 0
+	}
+	if index >= len(values) {
+		index = len(values) - 1
+	}
+	return values[index]
 }

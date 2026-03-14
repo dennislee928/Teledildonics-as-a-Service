@@ -62,6 +62,8 @@ Shared deploy defaults:
 
 - copy [`.env.deploy.example`](./.env.deploy.example) to `.env.deploy`
 - adjust [`koyeb.yaml`](./koyeb.yaml) if you want repo-local Koyeb manifest defaults
+- use [`.github/workflows/deploy-koyeb.yml`](./.github/workflows/deploy-koyeb.yml) to auto-deploy the Koyeb demo from `main`
+- use [`.github/workflows/deploy-hf-space.yml`](./.github/workflows/deploy-hf-space.yml) to auto-deploy the demo Space from `main`
 
 ## Demo IDs
 

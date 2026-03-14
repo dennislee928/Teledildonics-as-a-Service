@@ -175,6 +175,135 @@ func TestHandleInboundEventRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestPublishTelemetryStopsSessionAndRevokesGrant(t *testing.T) {
+	service, _ := newTestService(t)
+	session, err := service.CreateSession(context.Background(), domain.CreateSessionRequest{
+		WorkspaceID:   demoWorkspaceID,
+		CreatorID:     demoCreatorID,
+		DeviceID:      demoDeviceID,
+		RuleSetID:     demoRuleSetID,
+		MaxIntensity:  88,
+		MaxDurationMS: 12000,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := service.ArmSession(context.Background(), session.ID, domain.ArmSessionRequest{
+		BridgeID:    demoBridgeID,
+		ExpiresInMS: 60_000,
+	}); err != nil {
+		t.Fatalf("arm session: %v", err)
+	}
+
+	telemetry, err := service.PublishTelemetry(context.Background(), session.ID, domain.IngestTelemetryRequest{
+		Sequence:    1,
+		Status:      domain.TelemetryStopped,
+		ExecutedAt:  time.Date(2026, 3, 14, 3, 0, 5, 0, time.UTC),
+		DeviceState: "background-permission-lost",
+		LatencyMS:   0,
+		StopReason:  "background permission lost",
+	})
+	if err != nil {
+		t.Fatalf("publish telemetry: %v", err)
+	}
+	if telemetry.StopReason != "background permission lost" {
+		t.Fatalf("expected stop reason to be persisted, got %q", telemetry.StopReason)
+	}
+
+	updatedSession, err := service.store.GetSession(session.ID)
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	if updatedSession.Status != domain.SessionStopped {
+		t.Fatalf("expected session to be stopped, got %s", updatedSession.Status)
+	}
+
+	grant, err := service.store.GetGrantBySession(session.ID)
+	if err != nil {
+		t.Fatalf("get grant: %v", err)
+	}
+	if grant.RevokedAt == nil {
+		t.Fatalf("expected grant to be revoked")
+	}
+}
+
+func TestWorkspaceOverviewIncludesRecentUsageAuditAndTelemetry(t *testing.T) {
+	service, clock := newTestService(t)
+	session, err := service.CreateSession(context.Background(), domain.CreateSessionRequest{
+		WorkspaceID:   demoWorkspaceID,
+		CreatorID:     demoCreatorID,
+		DeviceID:      demoDeviceID,
+		RuleSetID:     demoRuleSetID,
+		MaxIntensity:  88,
+		MaxDurationMS: 12000,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := service.ArmSession(context.Background(), session.ID, domain.ArmSessionRequest{
+		BridgeID:    demoBridgeID,
+		ExpiresInMS: 60_000,
+	}); err != nil {
+		t.Fatalf("arm session: %v", err)
+	}
+
+	event, err := newSignedInboundEvent(service.secure, domain.InboundEvent{
+		EventType:      "tip.received",
+		WorkspaceID:    demoWorkspaceID,
+		CreatorID:      demoCreatorID,
+		SourceID:       session.ID,
+		Amount:         4.99,
+		Currency:       "USD",
+		OccurredAt:     clock().Add(2 * time.Second),
+		IdempotencyKey: "evt-overview",
+		Metadata:       map[string]any{"channel": "hosted-control"},
+	})
+	if err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+	if _, _, err := service.HandleInboundEvent(context.Background(), event); err != nil {
+		t.Fatalf("handle event: %v", err)
+	}
+	if _, err := service.PublishTelemetry(context.Background(), session.ID, domain.IngestTelemetryRequest{
+		Sequence:    1,
+		Status:      domain.TelemetryAck,
+		ExecutedAt:  clock().Add(3 * time.Second),
+		DeviceState: "command-accepted",
+		LatencyMS:   31.5,
+	}); err != nil {
+		t.Fatalf("publish telemetry: %v", err)
+	}
+
+	overview, err := service.GetWorkspaceOverview(context.Background(), demoWorkspaceID, demoCreatorID)
+	if err != nil {
+		t.Fatalf("get overview: %v", err)
+	}
+	if overview.Workspace.ID != demoWorkspaceID {
+		t.Fatalf("expected workspace %s, got %s", demoWorkspaceID, overview.Workspace.ID)
+	}
+	if overview.Creator.ID != demoCreatorID {
+		t.Fatalf("expected creator %s, got %s", demoCreatorID, overview.Creator.ID)
+	}
+	if len(overview.Sessions) == 0 {
+		t.Fatalf("expected overview sessions")
+	}
+	if len(overview.RecentUsage) == 0 {
+		t.Fatalf("expected recent usage entries")
+	}
+	if len(overview.RecentAudit) == 0 {
+		t.Fatalf("expected recent audit entries")
+	}
+	if len(overview.RecentTelemetry) == 0 {
+		t.Fatalf("expected recent telemetry entries")
+	}
+	if overview.RecentTelemetry[0].Status != domain.TelemetryAck {
+		t.Fatalf("expected latest telemetry to be ack, got %s", overview.RecentTelemetry[0].Status)
+	}
+	if overview.Metrics.AckCount == 0 {
+		t.Fatalf("expected ack metrics to be populated")
+	}
+}
+
 func newTestService(t *testing.T) (*ControlService, func() time.Time) {
 	t.Helper()
 	clock := time.Date(2026, 3, 14, 3, 0, 0, 0, time.UTC)

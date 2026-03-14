@@ -216,6 +216,40 @@ type TelemetryEvent struct {
 	StopReason  string          `json:"stop_reason,omitempty"`
 }
 
+type IngestTelemetryRequest struct {
+	Sequence    int64           `json:"sequence"`
+	Status      TelemetryStatus `json:"status"`
+	ExecutedAt  time.Time       `json:"executed_at"`
+	DeviceState string          `json:"device_state"`
+	LatencyMS   float64         `json:"latency_ms"`
+	ErrorCode   string          `json:"error_code,omitempty"`
+	StopReason  string          `json:"stop_reason,omitempty"`
+}
+
+type MetricsSnapshot struct {
+	AckCount          int              `json:"ack_count"`
+	AckP50MS          float64          `json:"ack_p50_ms"`
+	AckP95MS          float64          `json:"ack_p95_ms"`
+	WebhookFailures   int64            `json:"webhook_failures"`
+	RuleRejections    int64            `json:"rule_rejections"`
+	PanicStops        int64            `json:"panic_stops"`
+	PerRegionFailures map[string]int64 `json:"per_region_failures"`
+}
+
+type WorkspaceOverview struct {
+	Workspace       Workspace          `json:"workspace"`
+	Creator         Creator            `json:"creator"`
+	Bridges         []DeviceBridge     `json:"bridges"`
+	Devices         []Device           `json:"devices"`
+	RuleSets        []RuleSet          `json:"rulesets"`
+	Sessions        []Session          `json:"sessions"`
+	RecentUsage     []UsageLedgerEntry `json:"recent_usage"`
+	RecentAudit     []AuditEvent       `json:"recent_audit"`
+	RecentTelemetry []TelemetryEvent   `json:"recent_telemetry"`
+	Metrics         MetricsSnapshot    `json:"metrics"`
+	GeneratedAt     time.Time          `json:"generated_at"`
+}
+
 type PairDeviceBridgeRequest struct {
 	WorkspaceID        string           `json:"workspace_id"`
 	CreatorID          string           `json:"creator_id"`

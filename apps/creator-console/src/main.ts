@@ -3,8 +3,13 @@ import {
   TaasClient,
   type PairDeviceBridgeResponse,
   type Session,
-  type TelemetryEvent
+  type TelemetryEvent,
+  type WorkspaceOverview
 } from "@taas/domain-sdk";
+
+const WORKSPACE_ID = "ws_demo";
+const CREATOR_ID = "cr_demo";
+const DEFAULT_RULESET_ID = "rule_demo";
 
 function resolveApiBaseUrl(): string {
   if (typeof window === "undefined") {
@@ -28,6 +33,59 @@ function appendLog(target: HTMLElement, payload: unknown): void {
   target.textContent = `${JSON.stringify(payload, null, 2)}\n\n${target.textContent ?? ""}`.trim();
 }
 
+function replaceLog(target: HTMLElement, payload: unknown): void {
+  target.textContent = JSON.stringify(payload, null, 2);
+}
+
+function renderOverviewSummary(overview: WorkspaceOverview): string {
+  const armedSessions = overview.sessions.filter((session) => session.status === "armed").length;
+  const connectedDevices = overview.devices.filter((device) => device.connected).length;
+  const latestAudit = overview.recent_audit[0]?.kind ?? "none";
+  const latestTelemetry = overview.recent_telemetry[0]?.status ?? "none";
+
+  return `
+    <div class="summary-grid">
+      <div class="summary-tile">
+        <strong>${overview.sessions.length}</strong>
+        <span>sessions</span>
+      </div>
+      <div class="summary-tile">
+        <strong>${armedSessions}</strong>
+        <span>armed now</span>
+      </div>
+      <div class="summary-tile">
+        <strong>${connectedDevices}/${overview.devices.length}</strong>
+        <span>devices online</span>
+      </div>
+      <div class="summary-tile">
+        <strong>${overview.metrics.ack_p95_ms.toFixed(1)} ms</strong>
+        <span>ack p95</span>
+      </div>
+    </div>
+    <div class="pill-row overview-pills">
+      <span class="pill">Latest audit: ${latestAudit}</span>
+      <span class="pill">Latest telemetry: ${latestTelemetry}</span>
+      <span class="pill">Webhook failures: ${overview.metrics.webhook_failures}</span>
+      <span class="pill">Rule rejections: ${overview.metrics.rule_rejections}</span>
+    </div>
+  `;
+}
+
+function attachSessionStream(
+  sessionId: string,
+  telemetryLog: HTMLElement,
+  refreshOverview: () => Promise<void>
+): void {
+  telemetrySource?.close();
+  telemetrySource = client.streamSession(sessionId, {
+    onMessage: (event: TelemetryEvent) => {
+      appendLog(telemetryLog, event);
+      void refreshOverview();
+    },
+    onError: (error) => appendLog(telemetryLog, { streamError: String(error.type) })
+  });
+}
+
 function render(): void {
   const app = document.querySelector<HTMLDivElement>("#app");
   if (!app) {
@@ -40,17 +98,31 @@ function render(): void {
         <span class="kicker">Creator Console</span>
         <h1>Operate every session with explicit consent.</h1>
         <p>
-          This shell arms zero-trust sessions, pairs companion bridges, edits event-driven rules,
-          and tails telemetry from the relay. The seeded demo workspace matches the local Go API.
+          This shell now reads a live workspace overview, arms zero-trust sessions, pairs companion
+          bridges, edits event-driven rules, and accepts companion telemetry back into the control plane.
         </p>
         <div class="pill-row">
-          <span class="pill">Workspace: ws_demo</span>
-          <span class="pill">Creator: cr_demo</span>
-          <span class="pill">Default Rule: rule_demo</span>
+          <span class="pill">Workspace: ${WORKSPACE_ID}</span>
+          <span class="pill">Creator: ${CREATOR_ID}</span>
+          <span class="pill">Default Rule: ${DEFAULT_RULESET_ID}</span>
         </div>
       </section>
 
       <section class="grid">
+        <article class="card card-wide">
+          <div class="card-head">
+            <div>
+              <span class="kicker">Workspace Overview</span>
+              <h2>Read model and recent activity</h2>
+            </div>
+            <button id="refresh-overview-button">Refresh overview</button>
+          </div>
+          <div id="overview-summary" class="overview-summary">
+            <p class="subtle">Loading current workspace state...</p>
+          </div>
+          <pre id="overview-log">Overview pending...</pre>
+        </article>
+
         <article class="card">
           <span class="kicker">Device Pairing</span>
           <h2>Companion bridge</h2>
@@ -114,7 +186,7 @@ function render(): void {
           </label>
           <label>
             Rule set ID
-            <input id="session-rule-id" value="rule_demo" />
+            <input id="session-rule-id" value="${DEFAULT_RULESET_ID}" />
           </label>
           <label>
             Max intensity
@@ -137,22 +209,46 @@ function render(): void {
           <h2>Signed command health</h2>
           <p>Development endpoint public key:</p>
           <pre>${DEV_ENDPOINT_PUBLIC_KEY_DER_BASE64}</pre>
+          <div class="button-row">
+            <button id="simulate-ack-button">Simulate companion ack</button>
+            <button id="simulate-stop-button">Simulate disconnect stop</button>
+          </div>
           <pre id="telemetry-log" class="telemetry-log">Waiting for telemetry...</pre>
         </article>
       </section>
     </main>
   `;
 
+  const overviewSummary = document.querySelector<HTMLElement>("#overview-summary")!;
+  const overviewLog = document.querySelector<HTMLElement>("#overview-log")!;
   const pairingLog = document.querySelector<HTMLElement>("#pairing-log")!;
   const rulesLog = document.querySelector<HTMLElement>("#rules-log")!;
   const sessionLog = document.querySelector<HTMLElement>("#session-log")!;
   const telemetryLog = document.querySelector<HTMLElement>("#telemetry-log")!;
 
+  async function refreshOverview(): Promise<void> {
+    try {
+      const overview = await client.getWorkspaceOverview(WORKSPACE_ID, CREATOR_ID);
+      overviewSummary.innerHTML = renderOverviewSummary(overview);
+      replaceLog(overviewLog, overview);
+      if (currentSession) {
+        currentSession = overview.sessions.find((session) => session.id === currentSession?.id) ?? currentSession;
+      }
+    } catch (error) {
+      replaceLog(overviewLog, { error: error instanceof Error ? error.message : String(error) });
+      overviewSummary.innerHTML = `<p class="subtle">Unable to load overview right now.</p>`;
+    }
+  }
+
+  document.querySelector<HTMLButtonElement>("#refresh-overview-button")!.addEventListener("click", () => {
+    void refreshOverview();
+  });
+
   document.querySelector<HTMLButtonElement>("#pair-button")!.addEventListener("click", async () => {
     try {
       pairing = await client.pairDeviceBridge({
-        workspace_id: "ws_demo",
-        creator_id: "cr_demo",
+        workspace_id: WORKSPACE_ID,
+        creator_id: CREATOR_ID,
         bridge_id: "bridge_demo",
         transport_public_key: (document.querySelector<HTMLInputElement>("#transport-key")!).value,
         device_name: (document.querySelector<HTMLInputElement>("#device-name")!).value,
@@ -160,6 +256,7 @@ function render(): void {
         max_intensity: Number((document.querySelector<HTMLInputElement>("#pairing-max-intensity")?.value) ?? "88")
       });
       appendLog(pairingLog, pairing);
+      await refreshOverview();
     } catch (error) {
       appendLog(pairingLog, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -167,9 +264,9 @@ function render(): void {
 
   document.querySelector<HTMLButtonElement>("#save-rule-button")!.addEventListener("click", async () => {
     try {
-      const response = await client.updateRuleSet("rule_demo", {
-        workspace_id: "ws_demo",
-        creator_id: "cr_demo",
+      const response = await client.updateRuleSet(DEFAULT_RULESET_ID, {
+        workspace_id: WORKSPACE_ID,
+        creator_id: CREATOR_ID,
         amount_step_cents: Number((document.querySelector<HTMLInputElement>("#amount-step")!).value),
         intensity_step: Number((document.querySelector<HTMLInputElement>("#intensity-step")!).value),
         max_intensity: Number((document.querySelector<HTMLInputElement>("#max-intensity")!).value),
@@ -181,6 +278,7 @@ function render(): void {
         enabled: true
       });
       appendLog(rulesLog, response);
+      await refreshOverview();
     } catch (error) {
       appendLog(rulesLog, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -189,19 +287,16 @@ function render(): void {
   document.querySelector<HTMLButtonElement>("#create-session-button")!.addEventListener("click", async () => {
     try {
       currentSession = await client.createSession({
-        workspace_id: "ws_demo",
-        creator_id: "cr_demo",
+        workspace_id: WORKSPACE_ID,
+        creator_id: CREATOR_ID,
         device_id: (document.querySelector<HTMLInputElement>("#session-device-id")!).value,
         rule_set_id: (document.querySelector<HTMLInputElement>("#session-rule-id")!).value,
         max_intensity: Number((document.querySelector<HTMLInputElement>("#session-max-intensity")!).value),
         max_duration_ms: Number((document.querySelector<HTMLInputElement>("#session-max-duration")!).value)
       });
       appendLog(sessionLog, currentSession);
-      telemetrySource?.close();
-      telemetrySource = client.streamSession(currentSession.id, {
-        onMessage: (event: TelemetryEvent) => appendLog(telemetryLog, event),
-        onError: (error) => appendLog(telemetryLog, { streamError: String(error.type) })
-      });
+      attachSessionStream(currentSession.id, telemetryLog, refreshOverview);
+      await refreshOverview();
     } catch (error) {
       appendLog(sessionLog, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -218,6 +313,7 @@ function render(): void {
         expires_in_ms: 15 * 60 * 1000
       });
       appendLog(sessionLog, currentSession);
+      await refreshOverview();
     } catch (error) {
       appendLog(sessionLog, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -233,10 +329,54 @@ function render(): void {
         reason: "creator panic stop"
       });
       appendLog(sessionLog, currentSession);
+      await refreshOverview();
     } catch (error) {
       appendLog(sessionLog, { error: error instanceof Error ? error.message : String(error) });
     }
   });
+
+  document.querySelector<HTMLButtonElement>("#simulate-ack-button")!.addEventListener("click", async () => {
+    if (!currentSession) {
+      appendLog(telemetryLog, { error: "Create and arm a session first." });
+      return;
+    }
+    try {
+      const event = await client.publishSessionTelemetry(currentSession.id, {
+        sequence: currentSession.sequence,
+        status: "ack",
+        executed_at: new Date().toISOString(),
+        device_state: "command-accepted",
+        latency_ms: 32
+      });
+      appendLog(telemetryLog, { companionTelemetry: event });
+      await refreshOverview();
+    } catch (error) {
+      appendLog(telemetryLog, { error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("#simulate-stop-button")!.addEventListener("click", async () => {
+    if (!currentSession) {
+      appendLog(telemetryLog, { error: "Create and arm a session first." });
+      return;
+    }
+    try {
+      const event = await client.publishSessionTelemetry(currentSession.id, {
+        sequence: currentSession.sequence,
+        status: "stopped",
+        executed_at: new Date().toISOString(),
+        device_state: "background-permission-lost",
+        latency_ms: 0,
+        stop_reason: "background permission lost"
+      });
+      appendLog(telemetryLog, { companionTelemetry: event });
+      await refreshOverview();
+    } catch (error) {
+      appendLog(telemetryLog, { error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  void refreshOverview();
 }
 
 render();

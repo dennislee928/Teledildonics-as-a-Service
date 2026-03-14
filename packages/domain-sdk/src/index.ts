@@ -169,6 +169,16 @@ export interface TelemetryEvent {
   stop_reason?: string;
 }
 
+export interface IngestTelemetryRequest {
+  sequence: number;
+  status: TelemetryEvent["status"];
+  executed_at?: string;
+  device_state: string;
+  latency_ms: number;
+  error_code?: string;
+  stop_reason?: string;
+}
+
 export interface UsageLedgerEntry {
   id: string;
   workspace_id: string;
@@ -188,6 +198,30 @@ export interface AuditEvent {
   actor: string;
   details: Record<string, JsonValue>;
   occurred_at: string;
+}
+
+export interface MetricsSnapshot {
+  ack_count: number;
+  ack_p50_ms: number;
+  ack_p95_ms: number;
+  webhook_failures: number;
+  rule_rejections: number;
+  panic_stops: number;
+  per_region_failures: Record<string, number>;
+}
+
+export interface WorkspaceOverview {
+  workspace: Workspace;
+  creator: Creator;
+  bridges: DeviceBridge[];
+  devices: Device[];
+  rulesets: RuleSet[];
+  sessions: Session[];
+  recent_usage: UsageLedgerEntry[];
+  recent_audit: AuditEvent[];
+  recent_telemetry: TelemetryEvent[];
+  metrics: MetricsSnapshot;
+  generated_at: string;
 }
 
 export interface ApiErrorShape {
@@ -433,6 +467,24 @@ export class TaasClient {
       handlers.onError?.(error);
     };
     return source;
+  }
+
+  publishSessionTelemetry(sessionId: string, request: IngestTelemetryRequest): Promise<TelemetryEvent> {
+    return this.request(`/v1/sessions/${sessionId}/telemetry`, {
+      method: "POST",
+      headers: this.buildHeaders(),
+      body: JSON.stringify(request)
+    });
+  }
+
+  getWorkspaceOverview(workspaceId: string, creatorId: string): Promise<WorkspaceOverview> {
+    const path = `/v1/workspaces/${workspaceId}/overview?${new URLSearchParams({
+      creator_id: creatorId
+    }).toString()}`;
+    return this.request(path, {
+      method: "GET",
+      headers: this.buildHeaders()
+    });
   }
 }
 

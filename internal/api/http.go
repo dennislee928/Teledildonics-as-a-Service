@@ -40,6 +40,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/sessions/", s.handleSessionRoutes)
 	mux.HandleFunc("/v1/rulesets", s.handleCreateRuleSet)
 	mux.HandleFunc("/v1/rulesets/", s.handleUpdateRuleSet)
+	mux.HandleFunc("/v1/workspaces/", s.handleWorkspaceRoutes)
 	s.registerStaticApps(mux)
 	return withCORS(mux)
 }
@@ -197,6 +198,22 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 		writeJSON(writer, http.StatusOK, session)
 	case request.Method == http.MethodGet && action == "stream":
 		s.streamSession(writer, request, sessionID)
+	case request.Method == http.MethodPost && action == "telemetry":
+		var telemetryRequest domain.IngestTelemetryRequest
+		if err := json.NewDecoder(request.Body).Decode(&telemetryRequest); err != nil {
+			writeError(writer, http.StatusBadRequest, err)
+			return
+		}
+		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		writeJSON(writer, http.StatusAccepted, event)
 	default:
 		methodNotAllowed(writer)
 	}
@@ -237,6 +254,38 @@ func (s *Server) handleUpdateRuleSet(writer http.ResponseWriter, request *http.R
 		return
 	}
 	writeJSON(writer, http.StatusOK, ruleSet)
+}
+
+func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http.Request) {
+	trimmed := strings.TrimPrefix(request.URL.Path, "/v1/workspaces/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 {
+		writeError(writer, http.StatusNotFound, errors.New("unknown workspace route"))
+		return
+	}
+	workspaceID := parts[0]
+	action := parts[1]
+
+	switch {
+	case request.Method == http.MethodGet && action == "overview":
+		creatorID := request.URL.Query().Get("creator_id")
+		if creatorID == "" {
+			writeError(writer, http.StatusBadRequest, errors.New("creator_id is required"))
+			return
+		}
+		overview, err := s.service.GetWorkspaceOverview(request.Context(), workspaceID, creatorID)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		writeJSON(writer, http.StatusOK, overview)
+	default:
+		methodNotAllowed(writer)
+	}
 }
 
 func (s *Server) streamSession(writer http.ResponseWriter, request *http.Request, sessionID string) {
