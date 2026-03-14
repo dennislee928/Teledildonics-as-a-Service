@@ -1,5 +1,6 @@
 import {
   DEV_ENDPOINT_PUBLIC_KEY_DER_BASE64,
+  DEV_WORKSPACE_API_KEY,
   TaasClient,
   type PairDeviceBridgeResponse,
   type Session,
@@ -22,7 +23,8 @@ function resolveApiBaseUrl(): string {
 }
 
 const client = new TaasClient({
-  baseUrl: resolveApiBaseUrl()
+  baseUrl: resolveApiBaseUrl(),
+  apiKey: DEV_WORKSPACE_API_KEY
 });
 
 let currentSession: Session | null = null;

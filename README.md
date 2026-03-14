@@ -18,31 +18,57 @@ Teledildonics-as-a-Service (TaaS) is a production-oriented baseline for secure, 
 npm install
 ```
 
-2. Start backing services if you want external state stores later:
+2. Copy the local environment template:
 
 ```bash
-docker compose up -d
+cp .env.example .env
 ```
 
-3. Run the Go API:
+3. Run the Go API in memory mode:
 
 ```bash
-go run ./cmd/control-api
+scripts/run-control-api.sh memory
 ```
 
-4. Build the web packages and apps:
+4. If you want stateful local development, start the Postgres and Redis adapters instead:
+
+```bash
+scripts/run-control-api.sh stateful
+```
+
+5. Build the web packages and apps:
 
 ```bash
 npm run build
 ```
 
-5. Run tests:
+6. Run tests:
 
 ```bash
 go test ./...
 npm test
 cargo test -p companion-core
 ```
+
+## Workspace API Keys
+
+All `/v1/*` routes now require a workspace-scoped API key in the `X-Workspace-Api-Key` header.
+
+- Local seeded workspace: `ws_demo`
+- Local seeded creator: `cr_demo`
+- Local development API key: `taas_demo_workspace_key`
+
+Example:
+
+```bash
+curl -H 'X-Workspace-Api-Key: taas_demo_workspace_key' \
+  'http://127.0.0.1:8080/v1/workspaces/ws_demo/overview?creator_id=cr_demo'
+```
+
+You can switch persistence layers with:
+
+- `STORE_REPOSITORY_BACKEND=memory|postgres`
+- `STORE_RUNTIME_BACKEND=memory|redis`
 
 ## Deploying a Single Public Demo
 

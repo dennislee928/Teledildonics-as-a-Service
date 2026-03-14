@@ -235,6 +235,7 @@ export const DEV_ENDPOINT_PRIVATE_KEY_DER_BASE64 =
   "MC4CAQAwBQYDK2VwBCIEIGvi8nZj54obWkUuDjOz2yRSkG5qKzj7F9yG5cV3qXQ3";
 export const DEV_ENDPOINT_PUBLIC_KEY_DER_BASE64 =
   "MCowBQYDK2VwAyEActLEH8a4hP3A+lSi7xev4ifQuTsuEij9axOUqWioz5A=";
+export const DEV_WORKSPACE_API_KEY = "taas_demo_workspace_key";
 
 function sortJson(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {

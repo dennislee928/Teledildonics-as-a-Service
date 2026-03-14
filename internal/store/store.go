@@ -16,35 +16,35 @@ var (
 )
 
 type Repository interface {
-	UpsertWorkspace(domain.Workspace)
+	UpsertWorkspace(domain.Workspace) error
 	GetWorkspace(id string) (domain.Workspace, error)
-	UpsertCreator(domain.Creator)
+	UpsertCreator(domain.Creator) error
 	GetCreator(id string) (domain.Creator, error)
-	UpsertBridge(domain.DeviceBridge)
+	UpsertBridge(domain.DeviceBridge) error
 	GetBridge(id string) (domain.DeviceBridge, error)
 	ListBridges(workspaceID, creatorID string) []domain.DeviceBridge
-	UpsertDevice(domain.Device)
+	UpsertDevice(domain.Device) error
 	GetDevice(id string) (domain.Device, error)
 	ListDevices(creatorID string) []domain.Device
-	UpsertRuleSet(domain.RuleSet)
+	UpsertRuleSet(domain.RuleSet) error
 	GetRuleSet(id string) (domain.RuleSet, error)
 	ListRuleSets(workspaceID, creatorID string) []domain.RuleSet
-	CreateSession(domain.Session)
-	UpdateSession(domain.Session)
+	CreateSession(domain.Session) error
+	UpdateSession(domain.Session) error
 	GetSession(id string) (domain.Session, error)
 	ListSessions(workspaceID, creatorID string) []domain.Session
-	UpsertEndpoint(domain.InboundEndpoint)
+	UpsertEndpoint(domain.InboundEndpoint) error
 	GetEndpointByCreator(workspaceID, creatorID string) (domain.InboundEndpoint, error)
-	PutGrant(domain.ControlGrant)
+	PutGrant(domain.ControlGrant) error
 	GetGrantBySession(sessionID string) (domain.ControlGrant, error)
 	RevokeGrant(sessionID string, revokedAt time.Time) error
-	AddUsage(domain.UsageLedgerEntry)
+	AddUsage(domain.UsageLedgerEntry) error
 	ListUsage(workspaceID string, limit int) []domain.UsageLedgerEntry
-	AddAudit(domain.AuditEvent)
+	AddAudit(domain.AuditEvent) error
 	ListAudit(workspaceID, creatorID string, limit int) []domain.AuditEvent
-	AddTelemetry(domain.TelemetryEvent)
+	AddTelemetry(domain.TelemetryEvent) error
 	ListTelemetry(sessionIDs []string, limit int) []domain.TelemetryEvent
-	PutWorkspaceAPIKey(domain.WorkspaceAPIKey)
+	PutWorkspaceAPIKey(domain.WorkspaceAPIKey) error
 	AuthenticateWorkspaceAPIKey(rawKey string, usedAt time.Time) (domain.WorkspaceAPIKey, error)
 }
 

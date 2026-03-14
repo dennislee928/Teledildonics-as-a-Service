@@ -1,4 +1,5 @@
 import {
+  DEV_WORKSPACE_API_KEY,
   TaasClient,
   buildHostedControlEvent,
   signInboundEvent,
@@ -17,7 +18,8 @@ function resolveApiBaseUrl(): string {
 }
 
 const client = new TaasClient({
-  baseUrl: resolveApiBaseUrl()
+  baseUrl: resolveApiBaseUrl(),
+  apiKey: DEV_WORKSPACE_API_KEY
 });
 
 let latestEvent: InboundEventRequest | null = null;

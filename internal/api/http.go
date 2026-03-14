@@ -18,14 +18,24 @@ import (
 
 type Server struct {
 	service    *service.ControlService
+	repo       store.Repository
 	staticRoot string
 }
 
-func NewServer(service *service.ControlService, staticRoot string) *Server {
+func NewServer(service *service.ControlService, repo store.Repository, staticRoot string) *Server {
 	return &Server{
 		service:    service,
+		repo:       repo,
 		staticRoot: staticRoot,
 	}
+}
+
+type authContextKey struct{}
+
+type workspacePrincipal struct {
+	WorkspaceID string
+	KeyID       string
+	Label       string
 }
 
 func (s *Server) Handler() http.Handler {
@@ -42,7 +52,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/rulesets/", s.handleUpdateRuleSet)
 	mux.HandleFunc("/v1/workspaces/", s.handleWorkspaceRoutes)
 	s.registerStaticApps(mux)
-	return withCORS(mux)
+	return withCORS(s.withWorkspaceAPIKeyAuth(mux))
 }
 
 func (s *Server) handleLandingPage(writer http.ResponseWriter, request *http.Request) {
@@ -110,6 +120,10 @@ func (s *Server) handleInboundEvents(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusBadRequest, err)
 		return
 	}
+	if err := s.requireWorkspaceAccess(request, event.WorkspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return
+	}
 	command, usage, err := s.service.HandleInboundEvent(request.Context(), event)
 	if err != nil {
 		status := http.StatusUnprocessableEntity
@@ -136,6 +150,10 @@ func (s *Server) handlePairDeviceBridge(writer http.ResponseWriter, request *htt
 		writeError(writer, http.StatusBadRequest, err)
 		return
 	}
+	if err := s.requireWorkspaceAccess(request, pairRequest.WorkspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return
+	}
 	response, err := s.service.PairDeviceBridge(request.Context(), pairRequest)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
@@ -152,6 +170,10 @@ func (s *Server) handleSessions(writer http.ResponseWriter, request *http.Reques
 	var createRequest domain.CreateSessionRequest
 	if err := json.NewDecoder(request.Body).Decode(&createRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.requireWorkspaceAccess(request, createRequest.WorkspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
 		return
 	}
 	session, err := s.service.CreateSession(request.Context(), createRequest)
@@ -173,32 +195,84 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 	action := parts[1]
 	switch {
 	case request.Method == http.MethodPost && action == "arm":
+		session, err := s.repo.GetSession(sessionID)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		if err := s.requireWorkspaceAccess(request, session.WorkspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
 		var armRequest domain.ArmSessionRequest
 		if err := json.NewDecoder(request.Body).Decode(&armRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		session, err := s.service.ArmSession(request.Context(), sessionID, armRequest)
+		session, err = s.service.ArmSession(request.Context(), sessionID, armRequest)
 		if err != nil {
 			writeError(writer, http.StatusUnprocessableEntity, err)
 			return
 		}
 		writeJSON(writer, http.StatusOK, session)
 	case request.Method == http.MethodPost && action == "stop":
+		session, err := s.repo.GetSession(sessionID)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		if err := s.requireWorkspaceAccess(request, session.WorkspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
 		var stopRequest domain.StopSessionRequest
 		if err := json.NewDecoder(request.Body).Decode(&stopRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		session, err := s.service.StopSession(request.Context(), sessionID, stopRequest)
+		session, err = s.service.StopSession(request.Context(), sessionID, stopRequest)
 		if err != nil {
 			writeError(writer, http.StatusUnprocessableEntity, err)
 			return
 		}
 		writeJSON(writer, http.StatusOK, session)
 	case request.Method == http.MethodGet && action == "stream":
+		session, err := s.repo.GetSession(sessionID)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		if err := s.requireWorkspaceAccess(request, session.WorkspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
 		s.streamSession(writer, request, sessionID)
 	case request.Method == http.MethodPost && action == "telemetry":
+		session, err := s.repo.GetSession(sessionID)
+		if err != nil {
+			status := http.StatusUnprocessableEntity
+			if errors.Is(err, store.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeError(writer, status, err)
+			return
+		}
+		if err := s.requireWorkspaceAccess(request, session.WorkspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
 		var telemetryRequest domain.IngestTelemetryRequest
 		if err := json.NewDecoder(request.Body).Decode(&telemetryRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
@@ -229,6 +303,10 @@ func (s *Server) handleCreateRuleSet(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusBadRequest, err)
 		return
 	}
+	if err := s.requireWorkspaceAccess(request, ruleRequest.WorkspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return
+	}
 	ruleSet, err := s.service.UpsertRuleSet(request.Context(), "", ruleRequest)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
@@ -246,6 +324,20 @@ func (s *Server) handleUpdateRuleSet(writer http.ResponseWriter, request *http.R
 	var ruleRequest domain.UpsertRuleSetRequest
 	if err := json.NewDecoder(request.Body).Decode(&ruleRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.requireWorkspaceAccess(request, ruleRequest.WorkspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return
+	}
+	existingRuleSet, err := s.repo.GetRuleSet(ruleSetID)
+	if err == nil {
+		if err := s.requireWorkspaceAccess(request, existingRuleSet.WorkspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
+			return
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
 	ruleSet, err := s.service.UpsertRuleSet(request.Context(), ruleSetID, ruleRequest)
@@ -271,6 +363,10 @@ func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http
 		creatorID := request.URL.Query().Get("creator_id")
 		if creatorID == "" {
 			writeError(writer, http.StatusBadRequest, errors.New("creator_id is required"))
+			return
+		}
+		if err := s.requireWorkspaceAccess(request, workspaceID); err != nil {
+			writeError(writer, http.StatusForbidden, err)
 			return
 		}
 		overview, err := s.service.GetWorkspaceOverview(request.Context(), workspaceID, creatorID)
@@ -336,6 +432,50 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(writer, request)
 	})
+}
+
+func (s *Server) withWorkspaceAPIKeyAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method == http.MethodOptions || !strings.HasPrefix(request.URL.Path, "/v1/") {
+			next.ServeHTTP(writer, request)
+			return
+		}
+
+		rawKey := request.Header.Get("X-Workspace-Api-Key")
+		if rawKey == "" {
+			writeError(writer, http.StatusUnauthorized, errors.New("x-workspace-api-key is required"))
+			return
+		}
+
+		authenticatedKey, err := s.repo.AuthenticateWorkspaceAPIKey(rawKey, time.Now().UTC())
+		if err != nil {
+			status := http.StatusUnauthorized
+			if !errors.Is(err, store.ErrUnauthorized) {
+				status = http.StatusUnprocessableEntity
+			}
+			writeError(writer, status, err)
+			return
+		}
+
+		principal := workspacePrincipal{
+			WorkspaceID: authenticatedKey.WorkspaceID,
+			KeyID:       authenticatedKey.ID,
+			Label:       authenticatedKey.Label,
+		}
+		ctx := context.WithValue(request.Context(), authContextKey{}, principal)
+		next.ServeHTTP(writer, request.WithContext(ctx))
+	})
+}
+
+func (s *Server) requireWorkspaceAccess(request *http.Request, workspaceID string) error {
+	principal, ok := request.Context().Value(authContextKey{}).(workspacePrincipal)
+	if !ok {
+		return errors.New("workspace principal missing from request context")
+	}
+	if principal.WorkspaceID != workspaceID {
+		return errors.New("workspace api key does not grant access to this workspace")
+	}
+	return nil
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

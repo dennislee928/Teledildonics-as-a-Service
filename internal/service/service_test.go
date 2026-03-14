@@ -66,7 +66,7 @@ func TestHandleInboundEventProducesSignedEncryptedCommand(t *testing.T) {
 	if err := secure.VerifyCommandSignature(command, mustServerPublicKey(t, service.secure)); err != nil {
 		t.Fatalf("verify signature: %v", err)
 	}
-	grant, err := service.store.GetGrantBySession(session.ID)
+	grant, err := service.repo.GetGrantBySession(session.ID)
 	if err != nil {
 		t.Fatalf("load grant: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestPublishTelemetryStopsSessionAndRevokesGrant(t *testing.T) {
 		t.Fatalf("expected stop reason to be persisted, got %q", telemetry.StopReason)
 	}
 
-	updatedSession, err := service.store.GetSession(session.ID)
+	updatedSession, err := service.repo.GetSession(session.ID)
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestPublishTelemetryStopsSessionAndRevokesGrant(t *testing.T) {
 		t.Fatalf("expected session to be stopped, got %s", updatedSession.Status)
 	}
 
-	grant, err := service.store.GetGrantBySession(session.ID)
+	grant, err := service.repo.GetGrantBySession(session.ID)
 	if err != nil {
 		t.Fatalf("get grant: %v", err)
 	}
@@ -310,7 +310,7 @@ func newTestService(t *testing.T) (*ControlService, func() time.Time) {
 	store := store.NewMemoryStore()
 	relay := relay.NewInMemoryRelay()
 	secureEngine := secure.NewEngine([]byte("taas-server-signing"))
-	service := NewControlService(store, relay, secureEngine, NewMetrics())
+	service := NewControlService(store, store, relay, secureEngine, NewMetrics())
 	service.now = func() time.Time {
 		return clock
 	}

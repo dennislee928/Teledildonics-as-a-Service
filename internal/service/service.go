@@ -110,19 +110,23 @@ func (s *ControlService) SeedDemoData() error {
 	if err != nil {
 		return err
 	}
-	s.repo.UpsertWorkspace(domain.Workspace{
+	if err := s.repo.UpsertWorkspace(domain.Workspace{
 		ID:        demoWorkspaceID,
 		Name:      "TaaS Demo Workspace",
 		Region:    "global-dev",
 		CreatedAt: now,
-	})
-	s.repo.UpsertCreator(domain.Creator{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.UpsertCreator(domain.Creator{
 		ID:          demoCreatorID,
 		WorkspaceID: demoWorkspaceID,
 		DisplayName: "Creator Zero",
 		CreatedAt:   now,
-	})
-	s.repo.UpsertBridge(domain.DeviceBridge{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.UpsertBridge(domain.DeviceBridge{
 		ID:                   demoBridgeID,
 		WorkspaceID:          demoWorkspaceID,
 		CreatorID:            demoCreatorID,
@@ -134,8 +138,10 @@ func (s *ControlService) SeedDemoData() error {
 		CreatedAt:            now,
 		LastSeenAt:           now,
 		WrappedSessionKey:    sessionKey,
-	})
-	s.repo.UpsertDevice(domain.Device{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.UpsertDevice(domain.Device{
 		ID:           demoDeviceID,
 		BridgeID:     demoBridgeID,
 		CreatorID:    demoCreatorID,
@@ -144,8 +150,10 @@ func (s *ControlService) SeedDemoData() error {
 		MaxIntensity: 88,
 		Connected:    true,
 		UpdatedAt:    now,
-	})
-	s.repo.UpsertRuleSet(domain.RuleSet{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.UpsertRuleSet(domain.RuleSet{
 		ID:                 demoRuleSetID,
 		WorkspaceID:        demoWorkspaceID,
 		CreatorID:          demoCreatorID,
@@ -159,8 +167,10 @@ func (s *ControlService) SeedDemoData() error {
 		PatternID:          "pulse-wave",
 		Enabled:            true,
 		UpdatedAt:          now,
-	})
-	s.repo.UpsertEndpoint(domain.InboundEndpoint{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.UpsertEndpoint(domain.InboundEndpoint{
 		ID:             "endpoint_demo",
 		WorkspaceID:    demoWorkspaceID,
 		CreatorID:      demoCreatorID,
@@ -169,15 +179,19 @@ func (s *ControlService) SeedDemoData() error {
 		CreatedAt:      now,
 		RotatedAt:      now,
 		AllowedSources: []string{"hosted-control", "session_demo"},
-	})
-	s.repo.PutWorkspaceAPIKey(domain.WorkspaceAPIKey{
+	}); err != nil {
+		return err
+	}
+	if err := s.repo.PutWorkspaceAPIKey(domain.WorkspaceAPIKey{
 		ID:          "key_demo",
 		WorkspaceID: demoWorkspaceID,
 		Label:       "demo local development key",
 		KeyPrefix:   "taas_demo",
 		KeyHash:     store.HashWorkspaceAPIKey(DevWorkspaceAPIKey),
 		CreatedAt:   now,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -239,9 +253,13 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 		Connected:    true,
 		UpdatedAt:    now,
 	}
-	s.repo.UpsertBridge(bridge)
-	s.repo.UpsertDevice(device)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.UpsertBridge(bridge); err != nil {
+		return domain.PairDeviceBridgeResponse{}, err
+	}
+	if err := s.repo.UpsertDevice(device); err != nil {
+		return domain.PairDeviceBridgeResponse{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: request.WorkspaceID,
 		CreatorID:   request.CreatorID,
@@ -252,7 +270,9 @@ func (s *ControlService) PairDeviceBridge(_ context.Context, request domain.Pair
 			"device_id": device.ID,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.PairDeviceBridgeResponse{}, err
+	}
 	return domain.PairDeviceBridgeResponse{
 		Bridge:                 bridge,
 		Device:                 device,
@@ -288,8 +308,10 @@ func (s *ControlService) CreateSession(_ context.Context, request domain.CreateS
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	s.repo.CreateSession(session)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.CreateSession(session); err != nil {
+		return domain.Session{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -301,7 +323,9 @@ func (s *ControlService) CreateSession(_ context.Context, request domain.CreateS
 			"rule_set_id": session.RuleSetID,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.Session{}, err
+	}
 	return session, nil
 }
 
@@ -320,7 +344,9 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 	session.ArmedAt = &armedAt
 	session.StopReason = ""
 	session.UpdatedAt = now
-	s.repo.UpdateSession(session)
+	if err := s.repo.UpdateSession(session); err != nil {
+		return domain.Session{}, err
+	}
 	grant := domain.ControlGrant{
 		ID:            s.nextID("grant"),
 		SessionID:     session.ID,
@@ -334,8 +360,10 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 		CreatedAt:     now,
 		LastRotatedAt: now,
 	}
-	s.repo.PutGrant(grant)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.PutGrant(grant); err != nil {
+		return domain.Session{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -347,7 +375,9 @@ func (s *ControlService) ArmSession(_ context.Context, sessionID string, request
 			"expires_at": grant.ExpiresAt.Format(time.RFC3339Nano),
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.Session{}, err
+	}
 	return session, nil
 }
 
@@ -360,7 +390,9 @@ func (s *ControlService) StopSession(ctx context.Context, sessionID string, requ
 	session.Status = domain.SessionStopped
 	session.StopReason = request.Reason
 	session.UpdatedAt = now
-	s.repo.UpdateSession(session)
+	if err := s.repo.UpdateSession(session); err != nil {
+		return domain.Session{}, err
+	}
 	_ = s.repo.RevokeGrant(session.ID, now)
 	s.metrics.IncPanicStop()
 	command := domain.ControlCommand{
@@ -381,11 +413,13 @@ func (s *ControlService) StopSession(ctx context.Context, sessionID string, requ
 		return domain.Session{}, err
 	}
 	session.Sequence = command.Sequence
-	s.repo.UpdateSession(session)
+	if err := s.repo.UpdateSession(session); err != nil {
+		return domain.Session{}, err
+	}
 	if err := s.relay.StopAll(ctx, command, request.Reason); err != nil {
 		return domain.Session{}, err
 	}
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -396,7 +430,9 @@ func (s *ControlService) StopSession(ctx context.Context, sessionID string, requ
 			"reason": request.Reason,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.Session{}, err
+	}
 	return session, nil
 }
 
@@ -420,8 +456,10 @@ func (s *ControlService) UpsertRuleSet(_ context.Context, id string, request dom
 		Enabled:            request.Enabled,
 		UpdatedAt:          now,
 	}
-	s.repo.UpsertRuleSet(ruleSet)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.UpsertRuleSet(ruleSet); err != nil {
+		return domain.RuleSet{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: request.WorkspaceID,
 		CreatorID:   request.CreatorID,
@@ -431,7 +469,9 @@ func (s *ControlService) UpsertRuleSet(_ context.Context, id string, request dom
 			"rule_set_id": ruleSet.ID,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.RuleSet{}, err
+	}
 	return ruleSet, nil
 }
 
@@ -506,7 +546,9 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 	}
 	session.Sequence++
 	session.UpdatedAt = now
-	s.repo.UpdateSession(session)
+	if err := s.repo.UpdateSession(session); err != nil {
+		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
+	}
 	command := domain.ControlCommand{
 		SessionID:  session.ID,
 		Sequence:   session.Sequence,
@@ -546,8 +588,10 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 			"control_mode": "event-driven",
 		},
 	}
-	s.repo.AddUsage(usage)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.AddUsage(usage); err != nil {
+		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -560,7 +604,9 @@ func (s *ControlService) HandleInboundEvent(ctx context.Context, event domain.In
 			"duration_ms": durationMS,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.ControlCommand{}, domain.UsageLedgerEntry{}, err
+	}
 	return command, usage, nil
 }
 
@@ -606,12 +652,16 @@ func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string,
 		session.Status = domain.SessionStopped
 		session.StopReason = request.StopReason
 		session.UpdatedAt = now
-			s.repo.UpdateSession(session)
-			_ = s.repo.RevokeGrant(session.ID, now)
+		if err := s.repo.UpdateSession(session); err != nil {
+			return domain.TelemetryEvent{}, err
+		}
+		_ = s.repo.RevokeGrant(session.ID, now)
 	}
 
-	s.repo.AddTelemetry(event)
-	s.repo.AddAudit(domain.AuditEvent{
+	if err := s.repo.AddTelemetry(event); err != nil {
+		return domain.TelemetryEvent{}, err
+	}
+	if err := s.repo.AddAudit(domain.AuditEvent{
 		ID:          s.nextID("audit"),
 		WorkspaceID: session.WorkspaceID,
 		CreatorID:   session.CreatorID,
@@ -627,7 +677,9 @@ func (s *ControlService) PublishTelemetry(ctx context.Context, sessionID string,
 			"stop_reason":  event.StopReason,
 		},
 		OccurredAt: now,
-	})
+	}); err != nil {
+		return domain.TelemetryEvent{}, err
+	}
 	if err := s.relay.PublishTelemetry(ctx, event); err != nil {
 		return domain.TelemetryEvent{}, err
 	}

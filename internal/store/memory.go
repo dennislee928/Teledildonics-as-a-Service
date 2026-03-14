@@ -44,16 +44,18 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) UpsertWorkspace(workspace domain.Workspace) {
+func (s *MemoryStore) UpsertWorkspace(workspace domain.Workspace) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.workspaces[workspace.ID] = workspace
+	return nil
 }
 
-func (s *MemoryStore) UpsertCreator(creator domain.Creator) {
+func (s *MemoryStore) UpsertCreator(creator domain.Creator) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.creators[creator.ID] = creator
+	return nil
 }
 
 func (s *MemoryStore) GetWorkspace(id string) (domain.Workspace, error) {
@@ -76,16 +78,18 @@ func (s *MemoryStore) GetCreator(id string) (domain.Creator, error) {
 	return creator, nil
 }
 
-func (s *MemoryStore) UpsertEndpoint(endpoint domain.InboundEndpoint) {
+func (s *MemoryStore) UpsertEndpoint(endpoint domain.InboundEndpoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.endpoints[endpoint.ID] = endpoint
+	return nil
 }
 
-func (s *MemoryStore) UpsertBridge(bridge domain.DeviceBridge) {
+func (s *MemoryStore) UpsertBridge(bridge domain.DeviceBridge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bridges[bridge.ID] = bridge
+	return nil
 }
 
 func (s *MemoryStore) GetBridge(id string) (domain.DeviceBridge, error) {
@@ -98,10 +102,11 @@ func (s *MemoryStore) GetBridge(id string) (domain.DeviceBridge, error) {
 	return bridge, nil
 }
 
-func (s *MemoryStore) UpsertDevice(device domain.Device) {
+func (s *MemoryStore) UpsertDevice(device domain.Device) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.devices[device.ID] = device
+	return nil
 }
 
 func (s *MemoryStore) GetDevice(id string) (domain.Device, error) {
@@ -114,10 +119,11 @@ func (s *MemoryStore) GetDevice(id string) (domain.Device, error) {
 	return device, nil
 }
 
-func (s *MemoryStore) UpsertRuleSet(ruleSet domain.RuleSet) {
+func (s *MemoryStore) UpsertRuleSet(ruleSet domain.RuleSet) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.rulesets[ruleSet.ID] = ruleSet
+	return nil
 }
 
 func (s *MemoryStore) GetRuleSet(id string) (domain.RuleSet, error) {
@@ -130,16 +136,18 @@ func (s *MemoryStore) GetRuleSet(id string) (domain.RuleSet, error) {
 	return ruleSet, nil
 }
 
-func (s *MemoryStore) CreateSession(session domain.Session) {
+func (s *MemoryStore) CreateSession(session domain.Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[session.ID] = session
+	return nil
 }
 
-func (s *MemoryStore) UpdateSession(session domain.Session) {
+func (s *MemoryStore) UpdateSession(session domain.Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[session.ID] = session
+	return nil
 }
 
 func (s *MemoryStore) GetSession(id string) (domain.Session, error) {
@@ -163,10 +171,11 @@ func (s *MemoryStore) GetEndpointByCreator(workspaceID, creatorID string) (domai
 	return domain.InboundEndpoint{}, ErrNotFound
 }
 
-func (s *MemoryStore) PutGrant(grant domain.ControlGrant) {
+func (s *MemoryStore) PutGrant(grant domain.ControlGrant) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.grants[grant.SessionID] = grant
+	return nil
 }
 
 func (s *MemoryStore) GetGrantBySession(sessionID string) (domain.ControlGrant, error) {
@@ -191,28 +200,32 @@ func (s *MemoryStore) RevokeGrant(sessionID string, revokedAt time.Time) error {
 	return nil
 }
 
-func (s *MemoryStore) AddUsage(entry domain.UsageLedgerEntry) {
+func (s *MemoryStore) AddUsage(entry domain.UsageLedgerEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.usage = append(s.usage, entry)
+	return nil
 }
 
-func (s *MemoryStore) AddAudit(entry domain.AuditEvent) {
+func (s *MemoryStore) AddAudit(entry domain.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.audit = append(s.audit, entry)
+	return nil
 }
 
-func (s *MemoryStore) AddTelemetry(entry domain.TelemetryEvent) {
+func (s *MemoryStore) AddTelemetry(entry domain.TelemetryEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.telemetry = append(s.telemetry, entry)
+	return nil
 }
 
-func (s *MemoryStore) PutWorkspaceAPIKey(entry domain.WorkspaceAPIKey) {
+func (s *MemoryStore) PutWorkspaceAPIKey(entry domain.WorkspaceAPIKey) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.apiKeys[entry.KeyHash] = entry
+	return nil
 }
 
 func (s *MemoryStore) AuthenticateWorkspaceAPIKey(rawKey string, usedAt time.Time) (domain.WorkspaceAPIKey, error) {

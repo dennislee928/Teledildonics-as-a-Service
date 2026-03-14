@@ -23,10 +23,60 @@ func main() {
 		staticRoot = "."
 	}
 
+	repositoryBackend := os.Getenv("STORE_REPOSITORY_BACKEND")
+	if repositoryBackend == "" {
+		repositoryBackend = "memory"
+	}
+	runtimeBackend := os.Getenv("STORE_RUNTIME_BACKEND")
+	if runtimeBackend == "" {
+		runtimeBackend = "memory"
+	}
+
 	memoryStore := store.NewMemoryStore()
+	var repository store.Repository = memoryStore
+	var runtimeStore store.RuntimeStore = memoryStore
+	var postgresStore *store.PostgresStore
+
+	if repositoryBackend == "postgres" {
+		dsn := os.Getenv("POSTGRES_DSN")
+		if dsn == "" {
+			logger.Error("postgres repository backend requires POSTGRES_DSN")
+			os.Exit(1)
+		}
+		var err error
+		postgresStore, err = store.NewPostgresStore(dsn)
+		if err != nil {
+			logger.Error("failed to open postgres repository", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer func() {
+			_ = postgresStore.Close()
+		}()
+		if err := postgresStore.Migrate(); err != nil {
+			logger.Error("failed to migrate postgres repository", slog.Any("error", err))
+			os.Exit(1)
+		}
+		repository = postgresStore
+	}
+
+	if runtimeBackend == "redis" {
+		redisURL := os.Getenv("REDIS_URL")
+		if redisURL == "" {
+			logger.Error("redis runtime backend requires REDIS_URL")
+			os.Exit(1)
+		}
+		redisRuntimeStore, err := store.NewRedisRuntimeStore(redisURL)
+		if err != nil {
+			logger.Error("failed to open redis runtime store", slog.Any("error", err))
+			os.Exit(1)
+		}
+		runtimeStore = redisRuntimeStore
+	}
+
 	inMemoryRelay := relay.NewInMemoryRelay()
 	serviceLayer := service.NewControlService(
-		memoryStore,
+		repository,
+		runtimeStore,
 		relay.NewCloudflareAdapter(relay.CloudflareAdapterConfig{
 			AccountID:      os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
 			RealtimeAppID:  os.Getenv("CLOUDFLARE_REALTIME_APP_ID"),
@@ -41,8 +91,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := api.NewServer(serviceLayer, staticRoot)
-	logger.Info("control api listening", slog.String("addr", addr))
+	server := api.NewServer(serviceLayer, repository, staticRoot)
+	logger.Info("control api listening",
+		slog.String("addr", addr),
+		slog.String("repository_backend", repositoryBackend),
+		slog.String("runtime_backend", runtimeBackend),
+	)
 	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
 		logger.Error("control api stopped", slog.Any("error", err))
 		os.Exit(1)
