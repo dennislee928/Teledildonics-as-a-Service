@@ -4,9 +4,10 @@ coverage/
 .DS_Store
 .env
 .env.local
+.env.deploy
 tmp/
+.tmp-deploy/
 .turbo/
 target/
 Cargo.lock
 bin/
-

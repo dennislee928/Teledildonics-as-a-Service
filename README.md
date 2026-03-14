@@ -53,6 +53,15 @@ The repository now includes a root `Dockerfile` that builds the Go control API a
 - `/healthz`
 
 See [`docs/free-platform-deployment.md`](./docs/free-platform-deployment.md) for platform-specific notes across Koyeb, Hugging Face Spaces, Serv00, Back4App, Alwaysdata, and Deta Space.
+For hands-on deployment steps, use:
+
+- [`docs/runbooks/koyeb-deploy.md`](./docs/runbooks/koyeb-deploy.md)
+- [`docs/runbooks/huggingface-spaces-deploy.md`](./docs/runbooks/huggingface-spaces-deploy.md)
+
+Shared deploy defaults:
+
+- copy [`.env.deploy.example`](./.env.deploy.example) to `.env.deploy`
+- adjust [`koyeb.yaml`](./koyeb.yaml) if you want repo-local Koyeb manifest defaults
 
 ## Demo IDs
 
@@ -73,4 +82,3 @@ The browser apps use a development Ed25519 keypair that matches the seeded endpo
 - Pairing uses an X25519 transport key from the companion to wrap the session key returned by `POST /v1/device-bridges/pair`.
 - Session state is zero-trust by default: disarm, token expiry, runtime background loss, or explicit panic stop all collapse into `stop-all`.
 - The relay abstraction defaults to an in-memory local transport for development and a Cloudflare/Pion shaped adapter for production wiring.
-

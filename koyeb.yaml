@@ -1,0 +1,10 @@
+# Repository-local deployment manifest consumed by scripts/deploy-koyeb.sh.
+# This is not an official Koyeb-native manifest format.
+
+app_name: taas-demo
+service_name: taas-demo
+git_branch: main
+app_port: 8080
+static_root: /srv/taas
+wait_timeout: 10m
+

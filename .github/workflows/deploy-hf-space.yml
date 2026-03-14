@@ -1,0 +1,59 @@
+name: Deploy Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - go.mod
+      - go.sum
+      - package.json
+      - package-lock.json
+      - tsconfig.base.json
+      - cmd/**
+      - internal/**
+      - packages/**
+      - apps/creator-console/**
+      - apps/hosted-control/**
+      - scripts/deploy-hf-space.sh
+      - .github/workflows/deploy-hf-space.yml
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hf-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+      HF_SPACE_BRANCH: ${{ vars.HF_SPACE_BRANCH }}
+      HF_SPACE_TITLE: ${{ vars.HF_SPACE_TITLE }}
+      HF_SPACE_EMOJI: ${{ vars.HF_SPACE_EMOJI }}
+      HF_SPACE_COLOR_FROM: ${{ vars.HF_SPACE_COLOR_FROM }}
+      HF_SPACE_COLOR_TO: ${{ vars.HF_SPACE_COLOR_TO }}
+      HF_SPACE_PRIVATE: ${{ vars.HF_SPACE_PRIVATE }}
+      HF_USERNAME: ${{ vars.HF_USERNAME }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Install Hugging Face CLI
+        run: python -m pip install --upgrade "huggingface_hub[cli]"
+
+      - name: Validate required deployment configuration
+        run: |
+          test -n "${HF_SPACE_ID}" || { echo "HF_SPACE_ID repository variable is required"; exit 1; }
+          test -n "${HF_TOKEN}" || { echo "HF_TOKEN repository secret is required"; exit 1; }
+
+      - name: Deploy to Hugging Face Space
+        run: scripts/deploy-hf-space.sh
+
