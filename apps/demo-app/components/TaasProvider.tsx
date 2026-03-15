@@ -5,11 +5,16 @@ import { TaasClient } from "@taas/domain-sdk";
 
 const TaasContext = createContext<TaasClient | null>(null);
 
+const DEFAULT_API_URL = "https://teledildonics-as-a-service.onrender.com";
+
 export function TaasProvider({ children }: { children: React.ReactNode }) {
   const client = useMemo(() => {
-    // In a real app, these would come from env vars or a login state
+    const baseUrl =
+      typeof process !== "undefined" && process.env.NEXT_PUBLIC_TAAS_API_URL
+        ? process.env.NEXT_PUBLIC_TAAS_API_URL
+        : DEFAULT_API_URL;
     return new TaasClient({
-      baseUrl: "https://teledildonics-as-a-service.onrender.com",
+      baseUrl,
       apiKey: "taas_demo_workspace_key",
     });
   }, []);

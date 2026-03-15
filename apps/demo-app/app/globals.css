@@ -65,24 +65,19 @@ body {
   animation: float 6s ease-in-out infinite;
 }
 
-h1, h2, h3 {
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
 ::-webkit-scrollbar {
   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000;
+  background: #0a0a0a;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: rgba(255, 255, 255, 0.2);
 }
