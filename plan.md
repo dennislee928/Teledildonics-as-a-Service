@@ -51,12 +51,12 @@ Exit criteria:
 - Telemetry can come back through an authenticated bridge-facing path.
 
 ## Phase 4: Persistence And Operational Hardening
-Status: `pending`
+Status: `completed`
 
-- [ ] Add integration coverage for Postgres repository behavior.
-- [ ] Add integration coverage for Redis runtime behavior.
-- [ ] Expose a stable metrics and health surface for deployment targets.
-- [ ] Add migration and seed behavior checks for repeated startup on persistent backends.
+- [x] Add integration coverage for Postgres repository behavior.
+- [x] Add integration coverage for Redis runtime behavior.
+- [x] Expose a stable metrics and health surface for deployment targets.
+- [x] Add migration and seed behavior checks for repeated startup on persistent backends.
 
 Exit criteria:
 - Repeated startup against Postgres and Redis is safe.
@@ -76,4 +76,5 @@ Exit criteria:
 ## Known Risks To Track
 - Demo seeding can drift from real consent and pairing flows if it is not clearly isolated as demo-only behavior.
 - Browser SSE auth via query parameter is acceptable for demo use but should be replaced by a short-lived stream token or cookie-backed session for harder production paths.
-- The relay command queue is still process-local memory, so transport durability is not production-ready until Phase 4 or a dedicated relay backend lands.
+- The relay command queue is still process-local memory, so transport durability is not production-ready until a dedicated relay backend lands.
+- The new Postgres and Redis integration coverage is env-gated today, so Phase 5 still needs CI wiring that provisions those backends automatically.

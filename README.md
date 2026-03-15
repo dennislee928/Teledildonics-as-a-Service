@@ -50,6 +50,14 @@ npm test
 cargo test -p companion-core
 ```
 
+To include the stateful backend integration tests, point the suite at running Postgres and Redis instances first:
+
+```bash
+export TAAS_TEST_POSTGRES_DSN=postgres://taas:taas@localhost:5432/taas?sslmode=disable
+export TAAS_TEST_REDIS_URL=redis://localhost:6379
+go test ./...
+```
+
 ## Workspace API Keys
 
 All `/v1/*` routes now require a workspace-scoped API key in the `X-Workspace-Api-Key` header.
@@ -79,6 +87,8 @@ The repository now includes a root `Dockerfile` that builds the Go control API a
 - `/demo/hosted-control/`
 - `/demo/creator-console/`
 - `/healthz`
+- `/readyz`
+- `/metrics`
 
 See [`docs/free-platform-deployment.md`](./docs/free-platform-deployment.md) for platform-specific notes across Koyeb, Hugging Face Spaces, Serv00, Back4App, Alwaysdata, and Deta Space.
 For hands-on deployment steps, use:

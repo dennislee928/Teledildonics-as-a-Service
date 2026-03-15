@@ -1,25 +1,27 @@
 use base64::Engine;
+use companion_core::bridge::LocalBridge;
 use companion_core::device::MockDeviceBackend;
 use companion_core::model::{ArmedSession, TelemetryEvent};
 use companion_core::relay::MockRelayTransport;
 use companion_core::runtime::CompanionRuntime;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tauri::State;
 
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
 
 pub struct CompanionState {
-    runtime: Mutex<CompanionRuntime<MockRelayTransport, MockDeviceBackend>>,
+    runtime: Arc<Mutex<CompanionRuntime<MockRelayTransport, MockDeviceBackend>>>,
 }
 
 impl CompanionState {
     pub fn new() -> Self {
         Self {
-            runtime: Mutex::new(CompanionRuntime::new(
+            runtime: Arc::new(Mutex::new(CompanionRuntime::new(
                 MockRelayTransport::new("cloudflare-realtime"),
                 MockDeviceBackend::with_device("device_demo"),
-            )),
+            ))),
         }
     }
 }
@@ -52,14 +54,14 @@ mod commands {
     };
 
     #[tauri::command]
-    pub fn bootstrap_runtime(
+    pub async fn bootstrap_runtime(
         state: State<'_, CompanionState>,
         request: BootstrapRuntimeRequest,
     ) -> Result<SessionView, String> {
         let session_key =
             decode_fixed_base64::<32>(&request.session_key_base64, "session_key_base64")?;
         let server_public_key = decode_ed25519_public_key(&request.server_signing_public_key)?;
-        let mut runtime = state.runtime.lock().expect("poisoned lock");
+        let mut runtime = state.runtime.lock().await;
         runtime.arm_session(ArmedSession {
             session_id: request.session_id.clone(),
             device_id: request.device_id.clone(),
@@ -79,8 +81,8 @@ mod commands {
     }
 
     #[tauri::command]
-    pub fn panic_stop(state: State<'_, CompanionState>) -> Result<TelemetryEvent, String> {
-        let mut runtime = state.runtime.lock().expect("poisoned lock");
+    pub async fn panic_stop(state: State<'_, CompanionState>) -> Result<TelemetryEvent, String> {
+        let mut runtime = state.runtime.lock().await;
         runtime
             .panic_stop("operator panic stop")
             .map_err(|error| error.to_string())
@@ -124,8 +126,17 @@ fn decode_ed25519_public_key(value: &str) -> Result<[u8; 32], String> {
 }
 
 pub fn run() {
+    let state = CompanionState::new();
+    let bridge = LocalBridge::new(state.runtime.clone(), "demo-bridge-token".into());
+
+    tokio::spawn(async move {
+        if let Err(e) = bridge.run("127.0.0.1:8808").await {
+            eprintln!("Local bridge failed: {}", e);
+        }
+    });
+
     tauri::Builder::default()
-        .manage(CompanionState::new())
+        .manage(state)
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap_runtime,
             commands::panic_stop

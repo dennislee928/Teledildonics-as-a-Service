@@ -41,6 +41,16 @@ impl<R: RelayTransport, D: DeviceBackend> CompanionRuntime<R, D> {
         self.last_heartbeat_at = Some(SystemTime::now());
     }
 
+    pub fn armed_session_clone(&self) -> Option<ArmedSession> {
+        self.armed_session.clone()
+    }
+
+    pub fn apply_local_command(&mut self, intensity: u8, duration_ms: u64, pattern_id: &str) {
+        if let Some(session) = &self.armed_session {
+            self.devices.apply(&session.device_id, intensity, duration_ms, pattern_id);
+        }
+    }
+
     pub fn apply_command(
         &mut self,
         command: &ControlCommand,
