@@ -14,16 +14,47 @@ function extractInterfaceBlock(name) {
   return match[1];
 }
 
-function extractInterfaceProperties(name) {
+function countChar(line, char) {
+  return [...line].filter((candidate) => candidate === char).length;
+}
+
+function extractTopLevelPropertyLines(name) {
   const block = extractInterfaceBlock(name);
-  return [...block.matchAll(/^\s+([A-Za-z0-9_]+)\??:/gm)].map(([, property]) => property).sort();
+  const lines = block.split("\n");
+  const properties = [];
+  let depth = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      depth += countChar(line, "{") - countChar(line, "}");
+      continue;
+    }
+    if (depth === 0) {
+      const match = trimmed.match(/^([A-Za-z0-9_]+)\??:\s+(.+);?$/);
+      if (match) {
+        properties.push({
+          name: match[1],
+          type: match[2].replace(/;$/, "").trim()
+        });
+      }
+    }
+    depth += countChar(line, "{") - countChar(line, "}");
+  }
+
+  return properties;
+}
+
+function extractInterfaceProperties(name) {
+  return extractTopLevelPropertyLines(name)
+    .map((property) => property.name)
+    .sort();
 }
 
 function extractUnionValues(name, property) {
-  const block = extractInterfaceBlock(name);
-  const match = block.match(new RegExp(`\\n\\s+${property}: ([^;]+);`));
-  assert.ok(match, `missing ${name}.${property} in SDK source`);
-  return match[1]
+  const propertyDefinition = extractTopLevelPropertyLines(name).find((candidate) => candidate.name === property);
+  assert.ok(propertyDefinition, `missing ${name}.${property} in SDK source`);
+  return propertyDefinition.type
     .split("|")
     .map((part) => part.trim())
     .filter((part) => part.startsWith("\"") && part.endsWith("\""))
