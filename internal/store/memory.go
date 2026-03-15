@@ -373,6 +373,20 @@ func (s *MemoryStore) ListUsage(workspaceID string, limit int) []domain.UsageLed
 	return usage
 }
 
+func (s *MemoryStore) GetHotZones(workspaceID string) (map[float64]int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	zones := make(map[float64]int64)
+	for _, entry := range s.usage {
+		if entry.WorkspaceID == workspaceID {
+			if amount, ok := entry.Metadata["amount"].(float64); ok {
+				zones[amount]++
+			}
+		}
+	}
+	return zones, nil
+}
+
 func (s *MemoryStore) ListAudit(workspaceID, creatorID string, limit int) []domain.AuditEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

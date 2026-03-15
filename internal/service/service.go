@@ -768,6 +768,10 @@ func (s *ControlService) GetWorkspaceOverview(_ context.Context, workspaceID, cr
 	}, nil
 }
 
+func (s *ControlService) GetHotZones(_ context.Context, workspaceID string) (map[float64]int64, error) {
+	return s.repo.GetHotZones(workspaceID)
+}
+
 func (s *ControlService) SubscribeSession(sessionID string) (<-chan domain.TelemetryEvent, func()) {
 	return s.relay.Subscribe(sessionID)
 }

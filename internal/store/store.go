@@ -42,6 +42,7 @@ type Repository interface {
 	RevokeGrant(sessionID string, revokedAt time.Time) error
 	AddUsage(domain.UsageLedgerEntry) error
 	ListUsage(workspaceID string, limit int) []domain.UsageLedgerEntry
+	GetHotZones(workspaceID string) (map[float64]int64, error)
 	AddAudit(domain.AuditEvent) error
 	ListAudit(workspaceID, creatorID string, limit int) []domain.AuditEvent
 	AddTelemetry(domain.TelemetryEvent) error

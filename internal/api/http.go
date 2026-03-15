@@ -480,15 +480,16 @@ func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http
 	workspaceID := parts[0]
 	action := parts[1]
 
+	if err := s.requireWorkspaceAccess(request, workspaceID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return
+	}
+
 	switch {
 	case request.Method == http.MethodGet && action == "overview":
 		creatorID := request.URL.Query().Get("creator_id")
 		if creatorID == "" {
 			writeError(writer, http.StatusBadRequest, errors.New("creator_id is required"))
-			return
-		}
-		if err := s.requireWorkspaceAccess(request, workspaceID); err != nil {
-			writeError(writer, http.StatusForbidden, err)
 			return
 		}
 		overview, err := s.service.GetWorkspaceOverview(request.Context(), workspaceID, creatorID)
@@ -501,9 +502,24 @@ func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http
 			return
 		}
 		writeJSON(writer, http.StatusOK, overview)
+	case request.Method == http.MethodGet && action == "insights":
+		if len(parts) < 3 || parts[2] != "hot-zones" {
+			writeError(writer, http.StatusNotFound, errors.New("unknown insight route"))
+			return
+		}
+		s.handleGetHotZones(writer, request, workspaceID)
 	default:
 		methodNotAllowed(writer)
 	}
+}
+
+func (s *Server) handleGetHotZones(writer http.ResponseWriter, request *http.Request, workspaceID string) {
+	zones, err := s.service.GetHotZones(request.Context(), workspaceID)
+	if err != nil {
+		writeError(writer, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, zones)
 }
 
 func (s *Server) streamSession(writer http.ResponseWriter, request *http.Request, sessionID string) {
