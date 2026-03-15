@@ -1,0 +1,21 @@
+{
+  "name": "@taas/obs-overlay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@taas/domain-sdk": "0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "esbuild src/main.tsx --bundle --format=esm --outfile=dist/main.js",
+    "dev": "npm run build && python3 -m http.server 4175"
+  }
+}
