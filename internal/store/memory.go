@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -42,6 +43,10 @@ func NewMemoryStore() *MemoryStore {
 		idempotency:   make(map[string]time.Time),
 		sessionEvents: make(map[string][]time.Time),
 	}
+}
+
+func (s *MemoryStore) HealthCheck(context.Context) error {
+	return nil
 }
 
 func (s *MemoryStore) UpsertWorkspace(workspace domain.Workspace) error {
