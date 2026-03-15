@@ -1,11 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTaas } from "@/components/TaasProvider";
-import { WorkspaceOverview } from "@taas/domain-sdk";
 import Link from "next/link";
-import { Activity, ShieldCheck, Box, ArrowRight, Shield, Fingerprint } from "lucide-react";
-import { DotMatrixText, PillBadge, GlitchText, NothingButton } from "@dennislee928/nothingx-react-components";
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  Lock,
+  Radio,
+  Shield,
+  Unplug,
+  Zap,
+} from "lucide-react";
+import { WorkspaceOverview } from "@taas/domain-sdk";
+import { useTaas } from "@/components/TaasProvider";
+
+const ROUTES = [
+  {
+    href: "/explorer/sessions",
+    title: "Session lifecycle",
+    copy: "Create, arm, and inspect live sessions with the same IDs used by the control API demo.",
+    icon: <Activity size={18} />,
+  },
+  {
+    href: "/explorer/pairing",
+    title: "Bridge pairing",
+    copy: "Bootstrap a bridge, exchange transport keys, and inspect the server response without fake chrome.",
+    icon: <Unplug size={18} />,
+  },
+  {
+    href: "/explorer/rules",
+    title: "Rules and pricing",
+    copy: "Tune the economic mapping from event amounts into capped haptic commands and cooldown limits.",
+    icon: <Zap size={18} />,
+  },
+  {
+    href: "/explorer/telemetry",
+    title: "Telemetry stream",
+    copy: "Watch the live SSE flow and confirm latency, device state, and stop conditions in one place.",
+    icon: <Radio size={18} />,
+  },
+];
 
 export default function Home() {
   const client = useTaas();
@@ -13,127 +48,125 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    client.getWorkspaceOverview("ws_demo", "cr_demo")
+    client
+      .getWorkspaceOverview("ws_demo", "cr_demo")
       .then(setOverview)
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [client]);
 
-  return (
-    <div className="space-y-16 sm:space-y-20 animate-in fade-in duration-700">
-      {/* Hero Section */}
-      <section className="relative pt-8 sm:pt-12 pb-14 overflow-hidden">
-        <div className="flex flex-col items-center text-center space-y-6 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-            <Shield size={12} className="text-red-500" />
-            <span className="text-[10px] font-semibold tracking-wider text-red-500">Kernel provision active</span>
-          </div>
+  const armedSessions = overview?.sessions.filter((session) => session.status === "armed").length ?? 0;
+  const lastTelemetry = overview?.recent_telemetry[0];
 
-          <div className="space-y-1">
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight leading-none">
-              <GlitchText active>TAAS Core</GlitchText>
-            </h1>
-            <div className="flex justify-center opacity-60">
-              <DotMatrixText color="#71717a" dotSize={3}>Proto v2.4</DotMatrixText>
+  return (
+    <div className="space-y-6">
+      <section className="surface overflow-hidden">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+          <div className="space-y-6">
+            <div className="eyebrow">
+              <Shield size={12} />
+              Demo workspace online
+            </div>
+
+            <div className="space-y-4">
+              <h1 className="page-title max-w-4xl">A cleaner cockpit for the TaaS control plane.</h1>
+              <p className="page-copy max-w-2xl">
+                The demo app now behaves like an operational console instead of a novelty terminal skin.
+                Use it to inspect the live workspace, run API calls, and monitor the real transport surface.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link href="/explorer/sessions" className="btn-primary no-underline">
+                Open session explorer
+                <ArrowRight size={16} />
+              </Link>
+              <Link href="/explorer/telemetry" className="btn-secondary no-underline">
+                Watch telemetry
+              </Link>
             </div>
           </div>
 
-          <p className="max-w-xl text-sm sm:text-base text-white/60 leading-relaxed px-4">
-            Industrial-grade telemetry relay for remote haptic sync. Zero-latency. Zero-trust.
-          </p>
+          <div className="surface-muted flex flex-col gap-4 !rounded-[24px]">
+            <div>
+              <p className="metric-label">Workspace identity</p>
+              <p className="mt-2 text-2xl font-semibold text-[var(--text)]">ws_demo</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Creator `cr_demo`, seeded for local development.</p>
+            </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <Link href="/explorer/sessions">
-              <NothingButton onClick={() => {}} variant="primary">
-                Initialize workspace
-              </NothingButton>
-            </Link>
-            <Link href="/explorer/pairing">
-              <button className="px-6 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 hover:border-white/15 transition-all text-sm font-medium">
-                Pair device bridge
-              </button>
-            </Link>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <StatusRow label="Region" value={overview?.workspace.region ?? "global-dev"} />
+              <StatusRow label="Latest telemetry" value={lastTelemetry?.status ?? "none"} />
+              <StatusRow label="Last device state" value={lastTelemetry?.device_state ?? "idle"} />
+            </div>
           </div>
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-red-500/[0.04] rounded-full blur-[100px] -z-10" />
       </section>
 
-      {/* Quick Stats */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <QuickStat label="Network nodes" value={overview?.devices.length.toString() ?? "0"} />
-        <QuickStat label="Relay streams" value={overview?.sessions.length.toString() ?? "0"} />
-        <QuickStat label="Uptime" value="99.99%" />
-        <QuickStat label="Regions" value="03" />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Devices" value={loading ? "…" : String(overview?.devices.length ?? 0)} />
+        <StatCard label="Sessions" value={loading ? "…" : String(overview?.sessions.length ?? 0)} />
+        <StatCard label="Armed sessions" value={loading ? "…" : String(armedSessions)} />
+        <StatCard
+          label="P95 latency"
+          value={loading ? "…" : `${overview?.metrics.ack_p95_ms?.toFixed(1) ?? "0.0"} ms`}
+        />
       </section>
 
-      {/* Node Telemetry */}
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-4 border-b border-white/[0.06]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+        <div className="surface">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="metric-label">Focused routes</p>
+              <h2 className="mt-2 text-3xl text-[var(--text)]">Explore the demo without digging through ugly forms.</h2>
+            </div>
+            <div className="status-pill">
+              <Lock size={13} className="text-[var(--accent)]" />
+              Signed commands
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {ROUTES.map((route) => (
+              <Link key={route.href} href={route.href} className="metric-tile no-underline">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--accent)]">
+                    {route.icon}
+                  </div>
+                  <ArrowRight size={18} className="text-[var(--text-soft)]" />
+                </div>
+                <h3 className="mt-5 text-2xl text-[var(--text)]">{route.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{route.copy}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="surface space-y-5">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Node telemetry</h2>
-            <p className="text-xs text-white/40 mt-1">Live kernel metrics snapshot</p>
+            <p className="metric-label">Runtime posture</p>
+            <h2 className="mt-2 text-3xl text-[var(--text)]">Live workspace summary</h2>
           </div>
-          <div className="flex gap-2">
-            <PillBadge variant="live">Streaming</PillBadge>
-            <PillBadge variant="neutral">Secure</PillBadge>
-          </div>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <MetricCard
-            icon={<Activity size={20} />}
-            title="System load"
-            items={[
-              { label: "ACK rate", value: overview?.metrics.ack_count.toString() ?? "0" },
-              { label: "P95 latency", value: `${overview?.metrics.ack_p95_ms?.toFixed(1) ?? "0"} ms` },
-              { label: "Error log", value: overview?.metrics.rule_rejections.toString() ?? "0" },
-            ]}
-          />
-          <MetricCard
-            icon={<ShieldCheck size={20} />}
-            title="Security layer"
-            items={[
-              { label: "Auth", value: "X25519" },
-              { label: "Encryption", value: "AES-GCM" },
-              { label: "Active grants", value: overview?.sessions.filter(s => s.status === "armed").length.toString() ?? "0" },
-            ]}
-          />
-          <MetricCard
-            icon={<Box size={20} />}
-            title="Infrastructure"
-            items={[
-              { label: "Region", value: overview?.workspace.region ?? "global-dev" },
-              { label: "Providers", value: "Render API" },
-              { label: "Relay type", value: "Secure SSE" },
-            ]}
-          />
-        </div>
-      </section>
-
-      {/* Privacy highlight */}
-      <section className="grid lg:grid-cols-2 gap-10 items-center py-12 sm:py-16 border-t border-white/[0.06]">
-        <div className="space-y-6">
-          <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center border border-white/[0.08]">
-            <Fingerprint size={28} className="text-red-500" />
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
-            Designed for <span className="text-red-500">extreme</span> privacy
-          </h2>
-          <p className="text-sm text-white/60 leading-relaxed">
-            Every command is cryptographically signed and sealed with ephemeral session keys. We never see your haptic patterns—we only relay the heartbeat.
-          </p>
-          <Link
-            href="/explorer/handshake"
-            className="inline-flex items-center gap-2 text-sm font-medium text-red-500 hover:text-red-400 transition-colors"
-          >
-            Explore security protocol <ArrowRight size={14} />
-          </Link>
-        </div>
-        <div className="relative aspect-square rounded-2xl border border-white/[0.08] bg-white/[0.02] flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent" />
-          <div className="relative text-center animate-float">
-            <DotMatrixText color="#e11d48" dotSize={8}>SAFE</DotMatrixText>
-            <p className="text-[10px] mt-3 tracking-widest text-white/40">Zero trust verified</p>
+          <div className="space-y-3">
+            <StatusBlock
+              icon={<BarChart3 size={16} />}
+              title="Rule rejections"
+              value={loading ? "…" : String(overview?.metrics.rule_rejections ?? 0)}
+              copy="Requests blocked by cooldowns, rate limits, or invalid state."
+            />
+            <StatusBlock
+              icon={<Shield size={16} />}
+              title="Panic stops"
+              value={loading ? "…" : String(overview?.metrics.panic_stops ?? 0)}
+              copy="Emergency stop requests received by the control plane."
+            />
+            <StatusBlock
+              icon={<Radio size={16} />}
+              title="Recent ACKs"
+              value={loading ? "…" : String(overview?.metrics.ack_count ?? 0)}
+              copy="Observed acknowledgements flowing back from the device runtime."
+            />
           </div>
         </div>
       </section>
@@ -141,37 +174,48 @@ export default function Home() {
   );
 }
 
-function QuickStat({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6 hover:bg-white/[0.04] hover:border-white/[0.08] transition-all duration-200">
-      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider mb-1.5">{label}</p>
-      <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">{value}</p>
+    <div className="metric-tile">
+      <p className="metric-label">{label}</p>
+      <p className="metric-value">{value}</p>
     </div>
   );
 }
 
-function MetricCard({
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-[18px] border border-[var(--border)] bg-white/[0.03] px-4 py-3">
+      <span className="text-sm text-[var(--text-soft)]">{label}</span>
+      <span className="mono-copy text-sm text-[var(--text)]">{value}</span>
+    </div>
+  );
+}
+
+function StatusBlock({
   icon,
   title,
-  items,
+  value,
+  copy,
 }: {
   icon: React.ReactNode;
   title: string;
-  items: { label: string; value: string }[];
+  value: string;
+  copy: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6 hover:border-white/[0.08] transition-colors duration-200">
-      <div className="flex items-center gap-3 mb-5 text-red-500">
-        {icon}
-        <h3 className="text-sm font-semibold tracking-wide text-white/90">{title}</h3>
-      </div>
-      <div className="space-y-4">
-        {items.map(({ label, value }) => (
-          <div key={label} className="flex justify-between items-baseline gap-4">
-            <span className="text-[10px] font-medium text-white/40 uppercase tracking-wider">{label}</span>
-            <span className="text-xs font-medium text-white/80 tabular-nums">{value}</span>
+    <div className="surface-muted !rounded-[22px] !p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--accent)]">
+            {icon}
           </div>
-        ))}
+          <div>
+            <p className="font-semibold text-[var(--text)]">{title}</p>
+            <p className="text-sm text-[var(--text-muted)]">{copy}</p>
+          </div>
+        </div>
+        <span className="mono-copy text-xl text-[var(--text)]">{value}</span>
       </div>
     </div>
   );

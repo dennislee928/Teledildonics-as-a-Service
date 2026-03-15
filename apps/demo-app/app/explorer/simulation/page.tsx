@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useTaas } from "@/components/TaasProvider";
-import { ApiExplorer } from "@/components/ApiExplorer";
+import { ApiExplorer, ExplorerField, ExplorerNotice } from "@/components/ApiExplorer";
 import { signInboundEvent, Session } from "@taas/domain-sdk";
-import { Zap, Terminal as TerminalIcon, DollarSign } from "lucide-react";
-import { SegmentedDisplay } from "@dennislee928/nothingx-react-components";
+import { Terminal as TerminalIcon, Zap } from "lucide-react";
 
 export default function SimulationExplorer() {
   const client = useTaas();
@@ -38,66 +37,64 @@ export default function SimulationExplorer() {
   };
 
   return (
-    <ApiExplorer 
-      title="Event_Simulator" 
+    <ApiExplorer
+      title="Inbound event simulator"
       endpoint="POST /v1/inbound-events"
-      description="Mock high-level business events (Tips, Subs, Cheers). The system evaluates these against RuleSets to emit low-level haptic commands."
+      description="Mock inbound monetization events and let the rules engine translate them into control commands against an armed session."
       onExecute={onExecute}
+      actionLabel="Send simulated event"
     >
-      <div className="space-y-8">
-        <InputGroup label="Target_Session_Node">
-          <select 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 appearance-none"
+      <div className="space-y-5">
+        <ExplorerField label="Target session" icon={<Zap size={14} className="text-[var(--accent)]" />}>
+          <select
+            className="control-select"
             value={params.sessionId}
             onChange={(e) => setParams({ ...params, sessionId: e.target.value })}
           >
             {sessions.map(s => (
-              <option key={s.id} value={s.id} className="bg-black">{s.id} ({s.deviceId})</option>
+              <option key={s.id} value={s.id}>{s.id} ({s.deviceId})</option>
             ))}
-            {sessions.length === 0 && <option disabled className="bg-black">NO_ARMED_SESSIONS</option>}
+            {sessions.length === 0 && <option disabled>No armed sessions</option>}
           </select>
-        </InputGroup>
+        </ExplorerField>
 
-        <div className="space-y-4">
-          <InputGroup label="Tip_Value_Input">
-            <div className="flex justify-center py-6 bg-red-500/5 border border-red-500/10 rounded-2xl mb-4">
-               <SegmentedDisplay value={params.amount.split('.')[0]} color="#ff0000" size={48} />
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {["01.00", "05.00", "10.00", "50.00"].map(val => (
+        <ExplorerField label="Tip amount">
+          <div className="surface-muted !rounded-[22px] !p-4">
+            <div className="mono-copy text-4xl text-[var(--text)] sm:text-5xl">${params.amount}</div>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Pick a preset or type a custom amount.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {["01.00", "05.00", "10.00", "50.00"].map(val => (
                 <button
                   key={val}
+                  type="button"
                   onClick={() => setParams({ ...params, amount: val })}
-                  className={`py-2 rounded-lg text-[10px] font-black border transition-all ${
-                    params.amount === val ? "bg-white text-black border-white" : "border-white/10 text-muted-foreground hover:border-white/20"
+                  className={`rounded-full border px-4 py-3 text-sm transition-all ${
+                    params.amount === val
+                      ? "border-[color:var(--border-strong)] bg-[var(--accent-soft)] text-[var(--text)]"
+                      : "border-[var(--border)] bg-white/[0.03] text-[var(--text-muted)] hover:bg-white/[0.05]"
                   }`}
                 >
                   ${parseFloat(val)}
                 </button>
-              ))}
-            </div>
-          </InputGroup>
-        </div>
+            ))}
+          </div>
 
-        <div className="p-4 border border-white/5 rounded-xl bg-white/[0.02] flex items-start gap-3">
-           <TerminalIcon size={14} className="text-red-500 shrink-0 mt-0.5" />
-           <p className="text-[9px] font-mono text-muted-foreground uppercase leading-relaxed">
-             Security Note: All simulated events are signed with the DEV_PRIVATE_KEY before ingestion.
-           </p>
-        </div>
+          <input
+            className="control-input"
+            value={params.amount}
+            onChange={(e) => setParams({ ...params, amount: e.target.value })}
+          />
+        </ExplorerField>
+
+        <ExplorerNotice>
+          <span className="flex items-start gap-2">
+            <TerminalIcon size={14} className="mt-1 shrink-0 text-[var(--accent)]" />
+            All simulated events are signed with the seeded development key before they hit `/v1/inbound-events`.
+          </span>
+        </ExplorerNotice>
       </div>
     </ApiExplorer>
-  );
-}
-
-function InputGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Zap size={10} className="text-red-500/50" />
-        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</label>
-      </div>
-      {children}
-    </div>
   );
 }

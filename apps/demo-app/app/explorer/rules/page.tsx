@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import { useTaas } from "@/components/TaasProvider";
-import { ApiExplorer } from "@/components/ApiExplorer";
-import { Zap, Sliders, Hash } from "lucide-react";
+import { ApiExplorer, ExplorerField, ExplorerNotice } from "@/components/ApiExplorer";
+import { Sliders } from "lucide-react";
 
 export default function RulesExplorer() {
   const client = useTaas();
@@ -28,84 +28,77 @@ export default function RulesExplorer() {
   };
 
   return (
-    <ApiExplorer 
-      title="Logic_Architect" 
+    <ApiExplorer
+      title="Rule set designer"
       endpoint="POST /v1/rulesets"
-      description="Define the mathematical mapping between incoming currency and physical haptic response. Rulesets enforce safety limits and cost-per-intensity logic."
+      description="Define the mapping between incoming currency and physical haptic response. These values directly shape control intensity, duration, cooldown, and rate limits."
       onExecute={onExecute}
+      actionLabel="Create rule set"
     >
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          <InputGroup label="Credit_Step (cents)">
-            <input 
+        <div className="grid gap-4 md:grid-cols-2">
+          <ExplorerField label="Amount step (cents)" icon={<Sliders size={14} className="text-[var(--accent)]" />}>
+            <input
               type="number"
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+              className="control-input"
               value={params.amount_step_cents}
               onChange={(e) => setParams({ ...params, amount_step_cents: parseInt(e.target.value) })}
             />
-          </InputGroup>
-          <InputGroup label="Intensity_Step (%)">
-            <input 
+          </ExplorerField>
+          <ExplorerField label="Intensity step (%)">
+            <input
               type="number"
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+              className="control-input"
               value={params.intensity_step}
               onChange={(e) => setParams({ ...params, intensity_step: parseInt(e.target.value) })}
             />
-          </InputGroup>
+          </ExplorerField>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <InputGroup label="Duration_Step (ms)">
-            <input 
+        <div className="grid gap-4 md:grid-cols-2">
+          <ExplorerField label="Duration step (ms)">
+            <input
               type="number"
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+              className="control-input"
               value={params.duration_per_step_ms}
               onChange={(e) => setParams({ ...params, duration_per_step_ms: parseInt(e.target.value) })}
             />
-          </InputGroup>
-          <InputGroup label="Rate_Limit (rpm)">
-            <input 
+          </ExplorerField>
+          <ExplorerField label="Rate limit (rpm)">
+            <input
               type="number"
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+              className="control-input"
               value={params.rate_limit_per_minute}
               onChange={(e) => setParams({ ...params, rate_limit_per_minute: parseInt(e.target.value) })}
             />
-          </InputGroup>
+          </ExplorerField>
         </div>
 
-        <InputGroup label="Haptic_Pattern_ID">
-          <input 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors uppercase tracking-widest"
+        <ExplorerField label="Pattern ID">
+          <input
+            className="control-input"
             value={params.pattern_id}
             onChange={(e) => setParams({ ...params, pattern_id: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
 
-        <div className="flex items-center gap-4 p-4 border border-white/5 rounded-xl bg-white/[0.02]">
-           <input 
-             type="checkbox" 
-             id="enabled"
-             className="w-4 h-4 accent-red-500" 
-             checked={params.enabled}
-             onChange={(e) => setParams({ ...params, enabled: e.target.checked })}
-           />
-           <label htmlFor="enabled" className="text-[10px] font-black tracking-widest text-muted-foreground uppercase cursor-pointer">
-             Activate_Rule_Immediately
-           </label>
+        <div className="surface-muted !rounded-[22px] !p-4">
+          <label htmlFor="enabled" className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              id="enabled"
+              className="h-4 w-4 accent-[var(--accent)]"
+              checked={params.enabled}
+              onChange={(e) => setParams({ ...params, enabled: e.target.checked })}
+            />
+            <span className="text-sm text-[var(--text-muted)]">Enable the rule set immediately after creation.</span>
+          </label>
         </div>
+
+        <ExplorerNotice>
+          The omitted safety fields still use their seeded defaults in local demo mode. If you want those surfaced here next, I can expose them.
+        </ExplorerNotice>
       </div>
     </ApiExplorer>
-  );
-}
-
-function InputGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Sliders size={10} className="text-red-500/50" />
-        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</label>
-      </div>
-      {children}
-    </div>
   );
 }

@@ -1,19 +1,49 @@
 "use client";
 
 import React, { useState } from "react";
-import { NothingCard, TerminalBlink } from "@dennislee928/nothingx-react-components";
-import { Terminal as TerminalIcon, Send, Code, Play } from "lucide-react";
+import { AlertTriangle, CheckCircle2, LoaderCircle, Play, Terminal, Waypoints } from "lucide-react";
 
 interface ApiExplorerProps {
   title: string;
   endpoint: string;
   description: string;
-  children: React.ReactNode; // The form/input section
-  onExecute: () => Promise<any>;
+  children: React.ReactNode;
+  onExecute: () => Promise<unknown>;
+  actionLabel?: string;
 }
 
-export function ApiExplorer({ title, endpoint, description, children, onExecute }: ApiExplorerProps) {
-  const [response, setResponse] = useState<any>(null);
+interface ExplorerFieldProps {
+  label: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+interface ExplorerNoticeProps {
+  tone?: "default" | "warning";
+  children: React.ReactNode;
+}
+
+interface ExplorerSegmentedProps<T extends string> {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}
+
+interface ExplorerEmptyStateProps {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}
+
+export function ApiExplorer({
+  title,
+  endpoint,
+  description,
+  children,
+  onExecute,
+  actionLabel = "Run request",
+}: ApiExplorerProps) {
+  const [response, setResponse] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,8 +53,8 @@ export function ApiExplorer({ title, endpoint, description, children, onExecute 
     try {
       const result = await onExecute();
       setResponse(result);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown request failure");
       setResponse(null);
     } finally {
       setLoading(false);
@@ -32,86 +62,152 @@ export function ApiExplorer({ title, endpoint, description, children, onExecute 
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3 opacity-50">
-          <Code size={14} />
-          <span className="text-[10px] font-mono tracking-widest uppercase">API_ENDPOINT: {endpoint}</span>
+    <div className="space-y-6">
+      <section className="surface">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <div className="eyebrow">
+              <Waypoints size={12} />
+              API Explorer
+            </div>
+            <div className="space-y-2">
+              <h1 className="page-title">{title}</h1>
+              <p className="page-copy max-w-3xl">{description}</p>
+            </div>
+          </div>
+          <div className="status-pill mono-copy">
+            <Terminal size={14} className="text-[var(--accent)]" />
+            {endpoint}
+          </div>
         </div>
-        <h2 className="text-5xl font-black tracking-tighter uppercase">{title}</h2>
-        <p className="text-sm text-muted-foreground font-mono uppercase tracking-tighter max-w-2xl">{description}</p>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+        <div className="surface space-y-6">
+          <div className="space-y-2">
+            <p className="metric-label">Request payload</p>
+            <p className="text-sm leading-6 text-[var(--text-muted)]">
+              Inputs are wired to the real demo workspace. Keep the shapes clean and the output becomes much easier to read.
+            </p>
+          </div>
+
+          <div className="space-y-5">{children}</div>
+
+          <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[var(--text-soft)]">Workspace auth uses `taas_demo_workspace_key`.</p>
+            <button type="button" onClick={handleExecute} disabled={loading} className="btn-primary">
+              {loading ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}
+              {loading ? "Running…" : actionLabel}
+            </button>
+          </div>
+        </div>
+
+        <div className="surface-terminal response-frame">
+          <div className="response-header">
+            <div>
+              <p className="metric-label">Response</p>
+              <p className="text-sm text-[var(--text-muted)]">JSON payload and runtime feedback</p>
+            </div>
+            {loading ? (
+              <div className="status-pill">
+                <LoaderCircle size={13} className="animate-spin text-[var(--accent)]" />
+                In flight
+              </div>
+            ) : error ? (
+              <div className="status-pill">
+                <AlertTriangle size={13} className="text-[var(--accent)]" />
+                Request failed
+              </div>
+            ) : response ? (
+              <div className="status-pill">
+                <CheckCircle2 size={13} className="text-[var(--success)]" />
+                Request complete
+              </div>
+            ) : (
+              <div className="status-pill">Idle</div>
+            )}
+          </div>
+
+          <div className="response-body">
+            {loading ? (
+              <div className="flex h-full min-h-[20rem] flex-col items-center justify-center gap-4 text-[var(--text-muted)]">
+                <LoaderCircle size={30} className="animate-spin text-[var(--accent)]" />
+                <p className="mono-copy text-sm">Awaiting API response…</p>
+              </div>
+            ) : error ? (
+              <div className="note-card note-card-warning mono-copy">
+                <p className="mb-2 text-sm font-semibold text-[var(--text)]">Request failed</p>
+                <p className="terminal-copy">{error}</p>
+              </div>
+            ) : response ? (
+              <pre className="terminal-copy mono-copy">{JSON.stringify(response, null, 2)}</pre>
+            ) : (
+              <div className="flex h-full min-h-[20rem] flex-col items-center justify-center gap-4 text-center text-[var(--text-soft)]">
+                <Terminal size={34} className="text-[var(--accent)]" />
+                <p className="mono-copy text-sm">Run the request to inspect the live payload.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="response-footer text-sm text-[var(--text-soft)]">
+            <span className="mono-copy">application/json</span>
+            <span className="mono-copy">Live demo workspace</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function ExplorerField({ label, icon, children }: ExplorerFieldProps) {
+  return (
+    <div className="field-group">
+      <div className="field-label">
+        {icon}
+        <span>{label}</span>
       </div>
+      {children}
+    </div>
+  );
+}
 
-      <div className="grid gap-10 lg:grid-cols-12">
-        {/* Input Section */}
-        <div className="lg:col-span-5">
-          <NothingCard dark style={{ border: '1px solid #222', padding: 32, background: '#050505' }}>
-            <div className="space-y-8">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black tracking-widest uppercase text-red-500">Request_Parameters</h3>
-                <div className="w-2 h-2 rounded-full bg-red-500/20" />
-              </div>
-              
-              <div className="space-y-6">
-                {children}
-              </div>
+export function ExplorerNotice({ tone = "default", children }: ExplorerNoticeProps) {
+  return <div className={`note-card ${tone === "warning" ? "note-card-warning" : ""}`}>{children}</div>;
+}
 
-              <div className="pt-4">
-                <button 
-                  onClick={handleExecute}
-                  disabled={loading}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl text-xs font-black tracking-[0.3em] uppercase transition-all shadow-[0_0_30px_rgba(255,0,0,0.1)] disabled:opacity-50 flex items-center justify-center gap-3"
-                >
-                  {loading ? "EXECUTING..." : <><Play size={14} fill="currentColor" /> EXECUTE_CALL</>}
-                </button>
-              </div>
-            </div>
-          </NothingCard>
-        </div>
+export function ExplorerSegmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: ExplorerSegmentedProps<T>) {
+  return (
+    <div className="tab-strip">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`tab-chip ${active ? "tab-chip-active" : ""}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-        {/* Output Section */}
-        <div className="lg:col-span-7">
-          <NothingCard dark style={{ border: '1px solid #222', padding: 0, background: '#0a0a0a', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-              <div className="flex items-center gap-3">
-                <TerminalIcon size={14} className="text-red-500" />
-                <span className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">Response_Terminal</span>
-              </div>
-              <TerminalBlink />
-            </div>
-            
-            <div className="flex-1 p-6 font-mono text-[11px] overflow-auto scrollbar-hide min-h-[400px]">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center h-full opacity-30 gap-4">
-                   <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                   <p className="tracking-[0.2em]">AWAITING_SERVER_RESPONSE</p>
-                </div>
-              ) : error ? (
-                <div className="text-red-500 space-y-4">
-                  <p className="font-black underline">[CRITICAL_FAILURE]</p>
-                  <p className="opacity-80">{error}</p>
-                </div>
-              ) : response ? (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  <p className="text-green-500 font-black underline">[SUCCESS_200_OK]</p>
-                  <pre className="text-white/80 leading-relaxed overflow-x-auto">
-                    {JSON.stringify(response, null, 2)}
-                  </pre>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full opacity-10 py-20 text-center">
-                  <Code size={48} strokeWidth={1} />
-                  <p className="text-[10px] font-mono mt-4 tracking-[0.3em]">IDLE // NO_DATA_SENT</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-black border-t border-white/5 flex justify-between items-center text-[9px] font-mono text-white/20 uppercase tracking-[0.2em]">
-               <span>Protocol: HTTPS/TLS_1.3</span>
-               <span>Encoding: application/json</span>
-            </div>
-          </NothingCard>
-        </div>
+export function ExplorerEmptyState({ icon, title, body }: ExplorerEmptyStateProps) {
+  return (
+    <div className="surface-muted flex flex-col items-center gap-3 !rounded-[22px] !p-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--accent)]">
+        {icon}
+      </div>
+      <div className="space-y-1">
+        <p className="font-semibold text-[var(--text)]">{title}</p>
+        <p className="text-sm leading-6 text-[var(--text-muted)]">{body}</p>
       </div>
     </div>
   );

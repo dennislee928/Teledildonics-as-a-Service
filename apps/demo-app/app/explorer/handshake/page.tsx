@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import { useTaas } from "@/components/TaasProvider";
-import { ApiExplorer } from "@/components/ApiExplorer";
-import { Shield, Key, Cpu } from "lucide-react";
+import { ApiExplorer, ExplorerField, ExplorerNotice } from "@/components/ApiExplorer";
+import { Shield } from "lucide-react";
 
 export default function HandshakePage() {
   const client = useTaas();
@@ -24,62 +24,55 @@ export default function HandshakePage() {
   };
 
   return (
-    <ApiExplorer 
-      title="Secure_Handshake" 
+    <ApiExplorer
+      title="Secure handshake"
       endpoint="POST /v1/device-bridges/pair"
-      description="Establish a zero-trust encrypted bridge between a physical device and the TaaS control plane. This negotiates the ephemeral X25519 session key."
+      description="Inspect the bridge pairing handshake and confirm the transport exchange values returned by the server."
       onExecute={onExecute}
+      actionLabel="Run handshake"
     >
       <div className="space-y-4">
-        <InputGroup label="Device_Identity">
-          <input 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+        <ExplorerField label="Device name" icon={<Shield size={14} className="text-[var(--accent)]" />}>
+          <input
+            className="control-input"
             value={params.device_name}
             onChange={(e) => setParams({ ...params, device_name: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Capability_Profile">
-          <select 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 appearance-none"
+        <ExplorerField label="Capability">
+          <select
+            className="control-select"
             value={params.capability}
             onChange={(e) => setParams({ ...params, capability: e.target.value })}
           >
-            <option value="vibrate" className="bg-black">VIBRATION_HAPTIC</option>
-            <option value="oscillate" className="bg-black">OSCILLATION_ROTARY</option>
-            <option value="rotate" className="bg-black">STEREOSCOPIC_ROTATION</option>
+            <option value="vibrate">Vibration</option>
+            <option value="oscillate">Oscillation</option>
+            <option value="rotate">Rotation</option>
           </select>
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Intensity_Cap (%)">
-          <input 
+        <ExplorerField label="Max intensity (%)">
+          <input
             type="number"
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+            className="control-input"
             value={params.max_intensity}
             onChange={(e) => setParams({ ...params, max_intensity: parseInt(e.target.value) })}
           />
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Client_Transport_Key (X25519)">
-          <textarea 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-[10px] font-mono outline-none focus:border-red-500/50 transition-colors h-24 resize-none"
+        <ExplorerField label="Client transport public key">
+          <textarea
+            className="control-textarea"
             value={params.transport_public_key}
             onChange={(e) => setParams({ ...params, transport_public_key: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
+
+        <ExplorerNotice>
+          This route shares the same server pairing endpoint as bridge onboarding, but the visual emphasis here is on the returned cryptographic bundle.
+        </ExplorerNotice>
       </div>
     </ApiExplorer>
-  );
-}
-
-function InputGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Shield size={10} className="text-red-500/50" />
-        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</label>
-      </div>
-      {children}
-    </div>
   );
 }

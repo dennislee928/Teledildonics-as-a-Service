@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import { useTaas } from "@/components/TaasProvider";
-import { ApiExplorer } from "@/components/ApiExplorer";
-import { Unplug, Monitor, Cpu } from "lucide-react";
+import { ApiExplorer, ExplorerField, ExplorerNotice } from "@/components/ApiExplorer";
+import { Monitor } from "lucide-react";
 
 export default function PairingExplorer() {
   const client = useTaas();
@@ -25,61 +25,54 @@ export default function PairingExplorer() {
   };
 
   return (
-    <ApiExplorer 
-      title="Hardware_Link" 
+    <ApiExplorer
+      title="Bridge pairing"
       endpoint="POST /v1/device-bridges/pair"
-      description="Register a new device bridge and hardware node. This is the first step in onboarding a physical device to the TaaS network."
+      description="Register a new device bridge and hardware node. Pairing returns the wrapped session key bundle and server signing key."
       onExecute={onExecute}
+      actionLabel="Pair device bridge"
     >
       <div className="space-y-4">
-        <InputGroup label="Bridge_Alias">
-          <input 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+        <ExplorerField label="Bridge alias" icon={<Monitor size={14} className="text-[var(--accent)]" />}>
+          <input
+            className="control-input"
             value={params.bridge_name}
             onChange={(e) => setParams({ ...params, bridge_name: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Hardware_Label">
-          <input 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 transition-colors"
+        <ExplorerField label="Device label">
+          <input
+            className="control-input"
             value={params.device_name}
             onChange={(e) => setParams({ ...params, device_name: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Protocol_Capability">
-          <select 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-red-500/50 appearance-none"
+        <ExplorerField label="Capability">
+          <select
+            className="control-select"
             value={params.capability}
             onChange={(e) => setParams({ ...params, capability: e.target.value })}
           >
-            <option value="vibrate" className="bg-black">VIBRATE</option>
-            <option value="oscillate" className="bg-black">OSCILLATE</option>
-            <option value="rotate" className="bg-black">ROTATE</option>
+            <option value="vibrate">Vibrate</option>
+            <option value="oscillate">Oscillate</option>
+            <option value="rotate">Rotate</option>
           </select>
-        </InputGroup>
+        </ExplorerField>
 
-        <InputGroup label="Public_Key_Exchange">
-          <textarea 
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-[10px] font-mono outline-none focus:border-red-500/50 transition-colors h-24 resize-none"
+        <ExplorerField label="Transport public key">
+          <textarea
+            className="control-textarea"
             value={params.transport_public_key}
             onChange={(e) => setParams({ ...params, transport_public_key: e.target.value })}
           />
-        </InputGroup>
+        </ExplorerField>
+
+        <ExplorerNotice>
+          The response includes `session_key_bundle` and `server_signing_public_key`. Keep those visible; they are the point of this flow.
+        </ExplorerNotice>
       </div>
     </ApiExplorer>
-  );
-}
-
-function InputGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Monitor size={10} className="text-red-500/50" />
-        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</label>
-      </div>
-      {children}
-    </div>
   );
 }
