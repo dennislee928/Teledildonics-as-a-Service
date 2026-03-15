@@ -6,8 +6,10 @@
   "workspaces": [
     "apps/creator-console",
     "apps/hosted-control",
+    "apps/demo-app",
     "packages/domain-sdk",
-    "packages/embed-sdk"
+    "packages/embed-sdk",
+    "packages/obs-overlay"
   ],
   "scripts": {
     "build": "npm run build --workspace @taas/domain-sdk && npm run build --workspace @taas/embed-sdk && npm run build --workspace @taas/creator-console && npm run build --workspace @taas/hosted-control",
