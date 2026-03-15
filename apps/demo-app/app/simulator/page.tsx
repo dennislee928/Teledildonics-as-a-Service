@@ -32,7 +32,7 @@ export default function SimulatorPage() {
         source_id: sessionId,
         amount: amount,
         currency: "USD",
-        occurred_at: new Date(),
+        occurred_at: new Date().toISOString(),
         idempotency_key: `sim-${Date.now()}`,
         metadata: { simulator: true }
       });
@@ -57,7 +57,7 @@ export default function SimulatorPage() {
             <label className="text-sm font-medium">Armed Session</label>
             <select name="sessionId" className="w-full border rounded-md p-3 bg-background" required disabled={loading || sessions.length === 0}>
               {sessions.map(s => (
-                <option key={s.id} value={s.id}>{s.id} (Device: {s.device_id})</option>
+                <option key={s.id} value={s.id}>{s.id} (Device: {s.deviceId})</option>
               ))}
               {!loading && sessions.length === 0 && (
                 <option disabled>No armed sessions available</option>

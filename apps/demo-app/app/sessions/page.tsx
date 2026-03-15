@@ -114,7 +114,7 @@ export default function SessionsPage() {
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Device: {session.device_id} • Rule: {session.rule_set_id}
+                    Device: {session.deviceId} • Rule: {session.ruleSetId}
                   </div>
                 </div>
               </div>

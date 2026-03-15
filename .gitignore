@@ -11,3 +11,5 @@ tmp/
 target/
 Cargo.lock
 bin/
+/apps/demo-app/.next/cache
+/apps/demo-app/.next

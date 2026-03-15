@@ -18,6 +18,9 @@ export default function PairingPage() {
         workspace_id: "ws_demo",
         creator_id: "cr_demo",
         transport_public_key: mockKey,
+        device_name: "Demo Device",
+        capability: "vibrate",
+        max_intensity: 100,
       });
       setPairingData(res);
     } catch (err: any) {

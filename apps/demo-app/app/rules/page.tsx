@@ -51,14 +51,24 @@ export default function RulesPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Steps Mapping</p>
-              <div className="space-y-1">
-                {rule.steps.map((step, i) => (
-                  <div key={i} className="flex justify-between text-sm bg-muted/30 p-2 rounded border border-muted/50">
-                    <span>${step.amount.toFixed(2)}+</span>
-                    <span className="font-mono text-accent">{step.intensity}% • {step.duration_ms}ms</span>
-                  </div>
-                ))}
+              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Configuration</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-muted/30 p-2 rounded border border-muted/50">
+                  <span className="text-muted-foreground block">Step Amount</span>
+                  <span className="font-bold">${(rule.amountStepCents / 100).toFixed(2)}</span>
+                </div>
+                <div className="bg-muted/30 p-2 rounded border border-muted/50">
+                  <span className="text-muted-foreground block">Intensity Inc.</span>
+                  <span className="font-bold">{rule.intensityStep}%</span>
+                </div>
+                <div className="bg-muted/30 p-2 rounded border border-muted/50">
+                  <span className="text-muted-foreground block">Max Intensity</span>
+                  <span className="font-bold">{rule.maxIntensity}%</span>
+                </div>
+                <div className="bg-muted/30 p-2 rounded border border-muted/50">
+                  <span className="text-muted-foreground block">Duration Inc.</span>
+                  <span className="font-bold">{rule.durationPerStepMs}ms</span>
+                </div>
               </div>
             </div>
 

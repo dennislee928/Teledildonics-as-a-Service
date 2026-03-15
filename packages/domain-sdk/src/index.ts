@@ -541,6 +541,26 @@ export class TaasClient {
       headers: this.buildHeaders()
     });
   }
+
+  getHotZones(workspaceId: string): Promise<Record<number, number>> {
+    return this.request(`/v1/workspaces/${workspaceId}/insights/hot-zones`, {
+      method: "GET",
+      headers: this.buildHeaders()
+    });
+  }
+
+  handleInboundEvent(request: InboundEventRequest): Promise<{
+    accepted: boolean;
+    command: ControlCommand;
+    usage: UsageLedgerEntry;
+  }> {
+    return this.submitInboundEvent(request);
+  }
+
+  subscribeSession(sessionId: string, onMessage: (event: TelemetryEvent) => void): () => void {
+    const source = this.streamSession(sessionId, { onMessage });
+    return () => source.close();
+  }
 }
 
 export function buildHostedControlEvent(

@@ -56,6 +56,9 @@ type bridgePrincipal struct {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleLandingPage)
+	mux.HandleFunc("/docs", s.handleSwaggerDocs)
+	mux.HandleFunc("/docs/", s.handleSwaggerDocs)
+	mux.HandleFunc("/openapi.json", s.handleOpenAPISpec)
 	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -158,10 +161,12 @@ func (s *Server) handleLandingPage(writer http.ResponseWriter, request *http.Req
     <main>
       <p>TaaS control plane is online.</p>
       <h1>Secure control, local relay, deployable demos.</h1>
-      <ul>
-        <li><a href="/healthz">Health check</a></li>
-        <li><a href="/readyz">Readiness check</a></li>
-        <li><a href="/metrics">Metrics</a></li>
+	      <ul>
+	        <li><a href="/docs/">Swagger / API reference</a></li>
+	        <li><a href="/openapi.json">OpenAPI spec</a></li>
+	        <li><a href="/healthz">Health check</a></li>
+	        <li><a href="/readyz">Readiness check</a></li>
+	        <li><a href="/metrics">Metrics</a></li>
         <li><a href="/demo/hosted-control/">Hosted control demo</a></li>
         <li><a href="/demo/creator-console/">Creator console demo</a></li>
       </ul>
