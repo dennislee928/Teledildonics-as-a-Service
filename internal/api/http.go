@@ -14,7 +14,6 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/taas-hq/taas/internal/domain"
 	"github.com/taas-hq/taas/internal/relay"
 	"github.com/taas-hq/taas/internal/secure"
 	"github.com/taas-hq/taas/internal/service"
@@ -60,7 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/docs/", s.handleSwaggerDocs)
 	mux.HandleFunc("/openapi.json", s.handleOpenAPISpec)
 	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(writer, http.StatusOK, healthStatusVTO{Status: "ok"})
 	})
 	mux.HandleFunc("/readyz", s.handleReadyz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
@@ -80,11 +79,7 @@ func (s *Server) handleReadyz(writer http.ResponseWriter, request *http.Request)
 	ctx, cancel := context.WithTimeout(request.Context(), 2*time.Second)
 	defer cancel()
 
-	type checkState struct {
-		Status string `json:"status"`
-		Error  string `json:"error,omitempty"`
-	}
-	checks := map[string]checkState{
+	checks := map[string]readinessCheckVTO{
 		"repository": {Status: "ok"},
 		"runtime":    {Status: "ok"},
 	}
@@ -92,13 +87,13 @@ func (s *Server) handleReadyz(writer http.ResponseWriter, request *http.Request)
 
 	if checker, ok := s.repo.(store.HealthChecker); ok {
 		if err := checker.HealthCheck(ctx); err != nil {
-			checks["repository"] = checkState{Status: "error", Error: err.Error()}
+			checks["repository"] = readinessCheckVTO{Status: "error", Error: err.Error()}
 			status = http.StatusServiceUnavailable
 		}
 	}
 	if checker, ok := s.runtime.(store.HealthChecker); ok {
 		if err := checker.HealthCheck(ctx); err != nil {
-			checks["runtime"] = checkState{Status: "error", Error: err.Error()}
+			checks["runtime"] = readinessCheckVTO{Status: "error", Error: err.Error()}
 			status = http.StatusServiceUnavailable
 		}
 	}
@@ -107,10 +102,7 @@ func (s *Server) handleReadyz(writer http.ResponseWriter, request *http.Request)
 	if status != http.StatusOK {
 		overall = "degraded"
 	}
-	writeJSON(writer, status, map[string]any{
-		"status": overall,
-		"checks": checks,
-	})
+	writeJSON(writer, status, readinessStatusVTO{Status: overall, Checks: checks})
 }
 
 func (s *Server) handleMetrics(writer http.ResponseWriter, _ *http.Request) {
@@ -200,7 +192,7 @@ func (s *Server) handleInboundEvents(writer http.ResponseWriter, request *http.R
 		methodNotAllowed(writer)
 		return
 	}
-	var event domain.InboundEvent
+	var event inboundEventDTO
 	if err := json.NewDecoder(request.Body).Decode(&event); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
 		return
@@ -209,7 +201,7 @@ func (s *Server) handleInboundEvents(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusForbidden, err)
 		return
 	}
-	command, usage, err := s.service.HandleInboundEvent(request.Context(), event)
+	command, usage, err := s.service.HandleInboundEvent(request.Context(), event.toDomain())
 	if err != nil {
 		status := http.StatusUnprocessableEntity
 		if errors.Is(err, store.ErrNotFound) {
@@ -218,11 +210,7 @@ func (s *Server) handleInboundEvents(writer http.ResponseWriter, request *http.R
 		writeError(writer, status, err)
 		return
 	}
-	writeJSON(writer, http.StatusAccepted, map[string]any{
-		"accepted": true,
-		"command":  command,
-		"usage":    usage,
-	})
+	writeJSON(writer, http.StatusAccepted, newInboundEventAcceptedVTO(command, usage))
 }
 
 func (s *Server) handlePairDeviceBridge(writer http.ResponseWriter, request *http.Request) {
@@ -230,7 +218,7 @@ func (s *Server) handlePairDeviceBridge(writer http.ResponseWriter, request *htt
 		methodNotAllowed(writer)
 		return
 	}
-	var pairRequest domain.PairDeviceBridgeRequest
+	var pairRequest pairDeviceBridgeRequestDTO
 	if err := json.NewDecoder(request.Body).Decode(&pairRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
 		return
@@ -239,12 +227,12 @@ func (s *Server) handlePairDeviceBridge(writer http.ResponseWriter, request *htt
 		writeError(writer, http.StatusForbidden, err)
 		return
 	}
-	response, err := s.service.PairDeviceBridge(request.Context(), pairRequest)
+	response, err := s.service.PairDeviceBridge(request.Context(), pairRequest.toDomain())
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, response)
+	writeJSON(writer, http.StatusOK, newPairDeviceBridgeResponseVTO(response))
 }
 
 func (s *Server) handleSessions(writer http.ResponseWriter, request *http.Request) {
@@ -252,7 +240,7 @@ func (s *Server) handleSessions(writer http.ResponseWriter, request *http.Reques
 		methodNotAllowed(writer)
 		return
 	}
-	var createRequest domain.CreateSessionRequest
+	var createRequest createSessionRequestDTO
 	if err := json.NewDecoder(request.Body).Decode(&createRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
 		return
@@ -261,12 +249,12 @@ func (s *Server) handleSessions(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusForbidden, err)
 		return
 	}
-	session, err := s.service.CreateSession(request.Context(), createRequest)
+	session, err := s.service.CreateSession(request.Context(), createRequest.toDomain())
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	writeJSON(writer, http.StatusCreated, session)
+	writeJSON(writer, http.StatusCreated, newSessionVTO(session))
 }
 
 func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.Request) {
@@ -293,17 +281,17 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 			writeError(writer, http.StatusForbidden, err)
 			return
 		}
-		var armRequest domain.ArmSessionRequest
+		var armRequest armSessionRequestDTO
 		if err := json.NewDecoder(request.Body).Decode(&armRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		session, err = s.service.ArmSession(request.Context(), sessionID, armRequest)
+		session, err = s.service.ArmSession(request.Context(), sessionID, armRequest.toDomain())
 		if err != nil {
 			writeError(writer, http.StatusUnprocessableEntity, err)
 			return
 		}
-		writeJSON(writer, http.StatusOK, session)
+		writeJSON(writer, http.StatusOK, newSessionVTO(session))
 	case request.Method == http.MethodPost && action == "stop":
 		session, err := s.repo.GetSession(sessionID)
 		if err != nil {
@@ -318,17 +306,17 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 			writeError(writer, http.StatusForbidden, err)
 			return
 		}
-		var stopRequest domain.StopSessionRequest
+		var stopRequest stopSessionRequestDTO
 		if err := json.NewDecoder(request.Body).Decode(&stopRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		session, err = s.service.StopSession(request.Context(), sessionID, stopRequest)
+		session, err = s.service.StopSession(request.Context(), sessionID, stopRequest.toDomain())
 		if err != nil {
 			writeError(writer, http.StatusUnprocessableEntity, err)
 			return
 		}
-		writeJSON(writer, http.StatusOK, session)
+		writeJSON(writer, http.StatusOK, newSessionVTO(session))
 	case request.Method == http.MethodGet && action == "stream":
 		session, err := s.repo.GetSession(sessionID)
 		if err != nil {
@@ -358,12 +346,12 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 			writeError(writer, http.StatusForbidden, err)
 			return
 		}
-		var telemetryRequest domain.IngestTelemetryRequest
+		var telemetryRequest ingestTelemetryRequestDTO
 		if err := json.NewDecoder(request.Body).Decode(&telemetryRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest)
+		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest.toDomain())
 		if err != nil {
 			status := http.StatusUnprocessableEntity
 			if errors.Is(err, store.ErrNotFound) {
@@ -372,7 +360,7 @@ func (s *Server) handleSessionRoutes(writer http.ResponseWriter, request *http.R
 			writeError(writer, status, err)
 			return
 		}
-		writeJSON(writer, http.StatusAccepted, event)
+		writeJSON(writer, http.StatusAccepted, newTelemetryEventVTO(event))
 	default:
 		methodNotAllowed(writer)
 	}
@@ -400,12 +388,12 @@ func (s *Server) handleBridgeSessionRoutes(writer http.ResponseWriter, request *
 			writeError(writer, http.StatusForbidden, err)
 			return
 		}
-		var telemetryRequest domain.IngestTelemetryRequest
+		var telemetryRequest ingestTelemetryRequestDTO
 		if err := json.NewDecoder(request.Body).Decode(&telemetryRequest); err != nil {
 			writeError(writer, http.StatusBadRequest, err)
 			return
 		}
-		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest)
+		event, err := s.service.PublishTelemetry(request.Context(), sessionID, telemetryRequest.toDomain())
 		if err != nil {
 			status := http.StatusUnprocessableEntity
 			if errors.Is(err, store.ErrNotFound) {
@@ -414,7 +402,7 @@ func (s *Server) handleBridgeSessionRoutes(writer http.ResponseWriter, request *
 			writeError(writer, status, err)
 			return
 		}
-		writeJSON(writer, http.StatusAccepted, event)
+		writeJSON(writer, http.StatusAccepted, newTelemetryEventVTO(event))
 	default:
 		methodNotAllowed(writer)
 	}
@@ -425,7 +413,7 @@ func (s *Server) handleCreateRuleSet(writer http.ResponseWriter, request *http.R
 		methodNotAllowed(writer)
 		return
 	}
-	var ruleRequest domain.UpsertRuleSetRequest
+	var ruleRequest upsertRuleSetRequestDTO
 	if err := json.NewDecoder(request.Body).Decode(&ruleRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
 		return
@@ -434,12 +422,12 @@ func (s *Server) handleCreateRuleSet(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusForbidden, err)
 		return
 	}
-	ruleSet, err := s.service.UpsertRuleSet(request.Context(), "", ruleRequest)
+	ruleSet, err := s.service.UpsertRuleSet(request.Context(), "", ruleRequest.toDomain())
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	writeJSON(writer, http.StatusCreated, ruleSet)
+	writeJSON(writer, http.StatusCreated, newRuleSetVTO(ruleSet))
 }
 
 func (s *Server) handleUpdateRuleSet(writer http.ResponseWriter, request *http.Request) {
@@ -448,7 +436,7 @@ func (s *Server) handleUpdateRuleSet(writer http.ResponseWriter, request *http.R
 		return
 	}
 	ruleSetID := strings.TrimPrefix(request.URL.Path, "/v1/rulesets/")
-	var ruleRequest domain.UpsertRuleSetRequest
+	var ruleRequest upsertRuleSetRequestDTO
 	if err := json.NewDecoder(request.Body).Decode(&ruleRequest); err != nil {
 		writeError(writer, http.StatusBadRequest, err)
 		return
@@ -467,12 +455,12 @@ func (s *Server) handleUpdateRuleSet(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	ruleSet, err := s.service.UpsertRuleSet(request.Context(), ruleSetID, ruleRequest)
+	ruleSet, err := s.service.UpsertRuleSet(request.Context(), ruleSetID, ruleRequest.toDomain())
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, ruleSet)
+	writeJSON(writer, http.StatusOK, newRuleSetVTO(ruleSet))
 }
 
 func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http.Request) {
@@ -506,7 +494,7 @@ func (s *Server) handleWorkspaceRoutes(writer http.ResponseWriter, request *http
 			writeError(writer, status, err)
 			return
 		}
-		writeJSON(writer, http.StatusOK, overview)
+		writeJSON(writer, http.StatusOK, newWorkspaceOverviewVTO(overview))
 	case request.Method == http.MethodGet && action == "insights":
 		if len(parts) < 3 || parts[2] != "hot-zones" {
 			writeError(writer, http.StatusNotFound, errors.New("unknown insight route"))
@@ -524,7 +512,7 @@ func (s *Server) handleGetHotZones(writer http.ResponseWriter, request *http.Req
 		writeError(writer, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, zones)
+	writeJSON(writer, http.StatusOK, newHotZonesVTO(zones))
 }
 
 func (s *Server) streamSession(writer http.ResponseWriter, request *http.Request, sessionID string) {
@@ -554,7 +542,7 @@ func (s *Server) streamSession(writer http.ResponseWriter, request *http.Request
 			if !ok {
 				return
 			}
-			payload, err := json.Marshal(event)
+			payload, err := json.Marshal(newTelemetryEventVTO(event))
 			if err != nil {
 				return
 			}
@@ -734,9 +722,7 @@ func writeJSON(writer http.ResponseWriter, status int, payload any) {
 }
 
 func writeError(writer http.ResponseWriter, status int, err error) {
-	writeJSON(writer, status, map[string]string{
-		"error": err.Error(),
-	})
+	writeJSON(writer, status, apiErrorVTO{Error: err.Error()})
 }
 
 func StreamContext(request *http.Request) context.Context {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +235,40 @@ func TestAPIServesSwaggerDocsPage(t *testing.T) {
 	}
 	if !strings.Contains(body, "/openapi.json") {
 		t.Fatalf("expected openapi link in docs body, got %s", body)
+	}
+}
+
+func TestAPIHotZonesReturnsJSONStringKeys(t *testing.T) {
+	server := newTestServer(t)
+	if err := server.repo.AddUsage(domain.UsageLedgerEntry{
+		ID:          "usage_hot_zone",
+		WorkspaceID: "ws_demo",
+		SessionID:   "session_demo",
+		Metric:      "api_calls",
+		Units:       1,
+		OccurredAt:  time.Now().UTC(),
+		Metadata: map[string]any{
+			"amount": 4.99,
+		},
+	}); err != nil {
+		t.Fatalf("seed usage: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/workspaces/ws_demo/insights/hot-zones", nil)
+	request.Header.Set("X-Workspace-Api-Key", service.DevWorkspaceAPIKey)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	var payload map[string]int64
+	if err := json.NewDecoder(recorder.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode hot-zones: %v", err)
+	}
+	if payload[strconv.FormatFloat(4.99, 'f', -1, 64)] != 1 {
+		t.Fatalf("expected hot zone count for 4.99, got %#v", payload)
 	}
 }
 
