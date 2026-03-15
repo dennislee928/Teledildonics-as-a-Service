@@ -776,6 +776,14 @@ func (s *ControlService) Relay() relay.Relay {
 	return s.relay
 }
 
+func (s *ControlService) RuntimeStore() store.RuntimeStore {
+	return s.runtime
+}
+
+func (s *ControlService) MetricsSnapshot() domain.MetricsSnapshot {
+	return s.metrics.Snapshot()
+}
+
 func (s *ControlService) StartHeartbeatWorker(ctx context.Context) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	go func() {
