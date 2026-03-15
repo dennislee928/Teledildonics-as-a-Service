@@ -430,6 +430,30 @@ func (s *PostgresStore) ListUsage(workspaceID string, limit int) []domain.UsageL
 	`, workspaceID, limit)
 }
 
+func (s *PostgresStore) GetHotZones(workspaceID string) (map[float64]int64, error) {
+	rows, err := s.db.QueryContext(context.Background(), `
+		select (payload->'metadata'->>'amount')::float as amount, count(*) as count
+		from usage_entries
+		where workspace_id = $1
+		group by amount
+	`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	zones := make(map[float64]int64)
+	for rows.Next() {
+		var amount float64
+		var count int64
+		if err := rows.Scan(&amount, &count); err != nil {
+			return nil, err
+		}
+		zones[amount] = count
+	}
+	return zones, nil
+}
+
 func (s *PostgresStore) AddAudit(entry domain.AuditEvent) error {
 	payload, err := json.Marshal(entry)
 	if err != nil {
