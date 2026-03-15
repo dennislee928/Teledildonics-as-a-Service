@@ -4,10 +4,17 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@taas/domain-sdk": "0.1.0"
+    "@taas/domain-sdk": "0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "reactflow": "^11.11.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   },
   "scripts": {
-    "build": "npm run typecheck && esbuild src/main.ts --bundle --format=esm --outfile=dist/main.js",
+    "build": "npm run typecheck && esbuild src/main.tsx --bundle --format=esm --outfile=dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }
