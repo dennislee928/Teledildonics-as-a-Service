@@ -224,6 +224,8 @@ export interface WorkspaceOverview {
   generated_at: string;
 }
 
+export type HotZonesResponse = Record<string, number>;
+
 export interface ApiErrorShape {
   error: string;
 }
@@ -542,7 +544,7 @@ export class TaasClient {
     });
   }
 
-  getHotZones(workspaceId: string): Promise<Record<number, number>> {
+  getHotZones(workspaceId: string): Promise<HotZonesResponse> {
     return this.request(`/v1/workspaces/${workspaceId}/insights/hot-zones`, {
       method: "GET",
       headers: this.buildHeaders()

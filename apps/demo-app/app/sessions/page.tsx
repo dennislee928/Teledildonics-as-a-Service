@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { useTaas } from "@/components/TaasProvider";
 import { Session, Device, RuleSet } from "@taas/domain-sdk";
 import Link from "next/link";
-import { Plus, Activity, Play, StopCircle } from "lucide-react";
+import { Plus, Activity, Play, StopCircle, ArrowRight } from "lucide-react";
+import { 
+  NothingCard, 
+  NothingButton, 
+  DotMatrixText, 
+  DottedDivider,
+  PillBadge
+} from "@dennislee928/nothingx-react-components";
 
 export default function SessionsPage() {
   const client = useTaas();
@@ -45,110 +52,125 @@ export default function SessionsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Sessions</h2>
-          <p className="text-muted-foreground">Manage and monitor remote control sessions.</p>
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div>
+        <div className="flex items-center gap-3 mb-2 opacity-50">
+          <Activity size={16} />
+          <span className="text-[10px] font-mono tracking-widest uppercase">Traffic_Control</span>
         </div>
+        <h2 className="text-5xl font-black tracking-tighter">SESSIONS</h2>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="grid gap-10 lg:grid-cols-12">
         {/* Create Session Form */}
-        <div className="lg:col-span-1 border rounded-xl p-6 bg-card h-fit sticky top-24">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Plus size={18} /> New Session
-          </h3>
-          <form className="space-y-4" onSubmit={handleCreateSession}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Device</label>
-              <select name="deviceId" className="w-full border rounded-md p-2 bg-background" required>
-                {devices.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} {d.connected ? '✅' : '❌'}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">RuleSet</label>
-              <select name="ruleSetId" className="w-full border rounded-md p-2 bg-background" required>
-                {rulesets.map(r => (
-                  <option key={r.id} value={r.id}>Rule: {r.id} ({r.enabled ? 'On' : 'Off'})</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        <div className="lg:col-span-4 h-fit sticky top-24">
+          <NothingCard dark style={{ border: '1px solid #333', padding: 32, background: '#050505' }}>
+            <h3 className="text-sm font-black tracking-[0.2em] mb-8 flex items-center gap-3">
+              <Plus size={16} className="text-red-500" /> PROVISION_NODE
+            </h3>
+            
+            <form className="space-y-6" onSubmit={handleCreateSession}>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Max Intensity</label>
-                <input name="maxIntensity" type="number" defaultValue="88" className="w-full border rounded-md p-2 bg-background" />
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Target_Device</label>
+                <select name="deviceId" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-mono appearance-none focus:border-red-500/50 outline-none transition-colors" required>
+                  {devices.map(d => (
+                    <option key={d.id} value={d.id} className="bg-black">{d.name} {d.connected ? ' (LIVE)' : ' (OFFLINE)'}</option>
+                  ))}
+                </select>
               </div>
+              
               <div className="space-y-2">
-                <label className="text-sm font-medium">Max Duration (ms)</label>
-                <input name="maxDurationMs" type="number" defaultValue="12000" className="w-full border rounded-md p-2 bg-background" />
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Logic_RuleSet</label>
+                <select name="ruleSetId" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-mono appearance-none focus:border-red-500/50 outline-none transition-colors" required>
+                  {rulesets.map(r => (
+                    <option key={r.id} value={r.id} className="bg-black">{r.id} {r.enabled ? ' (ENABLED)' : ''}</option>
+                  ))}
+                </select>
               </div>
-            </div>
-            <button type="submit" className="w-full bg-accent text-accent-foreground py-2 rounded-md hover:bg-accent/90 transition-colors">
-              Create Session
-            </button>
-          </form>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Max_Intensity</label>
+                  <input name="maxIntensity" type="number" defaultValue="88" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-mono focus:border-red-500/50 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">TTL (ms)</label>
+                  <input name="maxDurationMs" type="number" defaultValue="12000" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-mono focus:border-red-500/50 outline-none" />
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <NothingButton onClick={() => {}} variant="primary">
+                  EXECUTE_PROVISION
+                </NothingButton>
+              </div>
+            </form>
+          </NothingCard>
         </div>
 
         {/* Sessions List */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-8 space-y-4">
           {loading ? (
-            <div className="text-center py-12">Loading sessions...</div>
-          ) : sessions.map(session => (
-            <div key={session.id} className="border rounded-xl p-6 bg-card flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-full ${
-                  session.status === 'armed' ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'
-                }`}>
-                  <Activity size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg">{session.id}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${
-                      session.status === 'armed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-yellow-700'
-                    }`}>
-                      {session.status}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Device: {session.deviceId} • Rule: {session.ruleSetId}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Link 
-                  href={`/sessions/${session.id}`}
-                  className="p-2 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
-                  title="View Details"
-                >
-                  <Activity size={20} />
-                </Link>
-                {session.status === 'armed' ? (
-                  <button 
-                    onClick={() => client.stopSession(session.id, { reason: "manual stop" }).then(fetchAll)}
-                    className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                    title="Stop Session"
-                  >
-                    <StopCircle size={20} />
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => client.armSession(session.id, { bridge_id: "bridge_demo", expires_in_ms: 3600000 }).then(fetchAll)}
-                    className="p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                    title="Arm Session"
-                  >
-                    <Play size={20} />
-                  </button>
-                )}
-              </div>
+            <div className="flex flex-col items-center justify-center py-20 opacity-20">
+               <DotMatrixText color="#888" dotSize={2}>FETCHING_RECORDS</DotMatrixText>
             </div>
+          ) : sessions.map(session => (
+            <NothingCard key={session.id} dark style={{ border: '1px solid #222', padding: '24px 32px' }}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-6">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${
+                    session.status === 'armed' ? 'border-red-500 bg-red-500/10 text-red-500 animate-pulse' : 'border-white/10 text-white/20'
+                  }`}>
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="font-black text-xl tracking-tighter uppercase">{session.id}</span>
+                      <PillBadge color={session.status === 'armed' ? '#ff0000' : '#333'}>
+                        {session.status.toUpperCase()}
+                      </PillBadge>
+                    </div>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                      NODE: {session.deviceId} // LOGIC: {session.ruleSetId}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Link 
+                    href={`/sessions/${session.id}`}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] font-black tracking-widest hover:bg-white/10 transition-colors uppercase"
+                  >
+                    Monitor <ArrowRight size={14} className="text-red-500" />
+                  </Link>
+                  
+                  {session.status === 'armed' ? (
+                    <button 
+                      onClick={() => client.stopSession(session.id, { reason: "manual stop" }).then(fetchAll)}
+                      className="p-3 text-red-500 hover:bg-red-500/10 rounded-full transition-colors border border-red-500/20"
+                      title="TERMINATE_SESSION"
+                    >
+                      <StopCircle size={20} />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => client.armSession(session.id, { bridge_id: "bridge_demo", expires_in_ms: 3600000 }).then(fetchAll)}
+                      className="p-3 text-green-500 hover:bg-green-500/10 rounded-full transition-colors border border-green-500/20"
+                      title="ARM_NODE"
+                    >
+                      <Play size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <DottedDivider style={{ marginTop: 20, opacity: 0.1 }} />
+            </NothingCard>
           ))}
+          
           {sessions.length === 0 && !loading && (
-            <div className="text-center py-12 border-2 border-dashed rounded-xl text-muted-foreground">
-              No sessions found. Create one to get started.
+            <div className="flex flex-col items-center justify-center py-32 border-2 border-dashed border-white/5 rounded-[32px] opacity-30 text-center">
+              <Activity size={48} strokeWidth={1} className="mb-4" />
+              <p className="text-xs font-mono tracking-[0.3em] uppercase">No_Active_Nodes_Detected</p>
             </div>
           )}
         </div>

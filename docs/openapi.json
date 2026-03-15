@@ -1,0 +1,1199 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TaaS Control API",
+    "version": "0.1.0",
+    "description": "Signed control-plane API for sessions, rules, bridge telemetry, and demo operations."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Operations"
+    },
+    {
+      "name": "Inbound"
+    },
+    {
+      "name": "Bridges"
+    },
+    {
+      "name": "Sessions"
+    },
+    {
+      "name": "Rulesets"
+    },
+    {
+      "name": "Workspaces"
+    },
+    {
+      "name": "Bridge Transport"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Liveness probe",
+        "responses": {
+          "200": {
+            "description": "API process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Backend readiness probe",
+        "responses": {
+          "200": {
+            "description": "Repository and runtime backends are healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyzResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more backends are degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyzResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Prometheus-style metrics snapshot",
+        "responses": {
+          "200": {
+            "description": "Plain-text metrics output",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inbound-events": {
+      "post": {
+        "tags": ["Inbound"],
+        "summary": "Submit a signed inbound event",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboundEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted and mapped to a control command",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundEventAccepted"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/device-bridges/pair": {
+      "post": {
+        "tags": ["Bridges"],
+        "summary": "Pair a device bridge and return wrapped session material",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairDeviceBridgeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bridge paired successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairDeviceBridgeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sessions": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Create a pending session",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{sessionId}/arm": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Arm a session and mint a control grant",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArmSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session armed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{sessionId}/stop": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Stop a session and dispatch stop-all",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{sessionId}/stream": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Stream session telemetry as server-sent events",
+        "description": "Browser clients can authenticate with the `api_key` query parameter when headers are unavailable.",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of `telemetry` events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{sessionId}/telemetry": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Publish session telemetry with workspace credentials",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestTelemetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Telemetry accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryEvent"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/bridge/v1/sessions/{sessionId}/connect": {
+      "get": {
+        "tags": ["Bridge Transport"],
+        "summary": "Upgrade to the fallback bridge websocket",
+        "description": "Companion bridges receive signed commands for the active grant over this websocket.",
+        "security": [
+          {
+            "BridgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          },
+          {
+            "name": "bridge_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgrade accepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/bridge/v1/sessions/{sessionId}/telemetry": {
+      "post": {
+        "tags": ["Bridge Transport"],
+        "summary": "Publish bridge telemetry with a bridge grant token",
+        "security": [
+          {
+            "BridgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestTelemetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Telemetry accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryEvent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/rulesets": {
+      "post": {
+        "tags": ["Rulesets"],
+        "summary": "Create a ruleset",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRuleSetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ruleset created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSet"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/rulesets/{ruleSetId}": {
+      "put": {
+        "tags": ["Rulesets"],
+        "summary": "Update or upsert a ruleset",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ruleSetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRuleSetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ruleset updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSet"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspaceId}/overview": {
+      "get": {
+        "tags": ["Workspaces"],
+        "summary": "Load creator workspace overview",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceID"
+          },
+          {
+            "name": "creator_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceOverview"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspaceId}/insights/hot-zones": {
+      "get": {
+        "tags": ["Workspaces"],
+        "summary": "Load workspace amount hot-zones",
+        "security": [
+          {
+            "WorkspaceApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observed inbound amount frequency map",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotZonesResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WorkspaceApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Workspace-Api-Key"
+      },
+      "BridgeToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Bridge-Token"
+      }
+    },
+    "parameters": {
+      "SessionID": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "WorkspaceID": {
+        "name": "workspaceId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "Error response",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": ["status"]
+      },
+      "ReadyzResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HealthCheckState"
+            }
+          }
+        },
+        "required": ["status", "checks"]
+      },
+      "HealthCheckState": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["status"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["error"]
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "region", "createdAt"]
+      },
+      "Creator": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspaceId": { "type": "string" },
+          "displayName": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "workspaceId", "displayName", "createdAt"]
+      },
+      "DeviceBridge": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspaceId": { "type": "string" },
+          "creatorId": { "type": "string" },
+          "transport": {
+            "type": "string",
+            "enum": ["cloudflare-realtime", "websocket-fallback"]
+          },
+          "status": { "type": "string" },
+          "fallbackWebsocketUrl": { "type": "string" },
+          "publicKey": { "type": "string" },
+          "transportPublicKey": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "lastSeenAt": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "creatorId",
+          "transport",
+          "status",
+          "fallbackWebsocketUrl",
+          "publicKey",
+          "transportPublicKey",
+          "createdAt",
+          "lastSeenAt"
+        ]
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "bridgeId": { "type": "string" },
+          "creatorId": { "type": "string" },
+          "name": { "type": "string" },
+          "capability": {
+            "type": "string",
+            "enum": ["vibrate", "oscillate", "rotate"]
+          },
+          "maxIntensity": { "type": "integer" },
+          "connected": { "type": "boolean" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "bridgeId", "creatorId", "name", "capability", "maxIntensity", "connected", "updatedAt"]
+      },
+      "RuleSet": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspaceId": { "type": "string" },
+          "creatorId": { "type": "string" },
+          "amountStepCents": { "type": "integer", "format": "int64" },
+          "intensityStep": { "type": "integer" },
+          "maxIntensity": { "type": "integer" },
+          "durationPerStepMs": { "type": "integer" },
+          "maxDurationMs": { "type": "integer" },
+          "cooldownMs": { "type": "integer" },
+          "rateLimitPerMinute": { "type": "integer" },
+          "patternId": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "creatorId",
+          "amountStepCents",
+          "intensityStep",
+          "maxIntensity",
+          "durationPerStepMs",
+          "maxDurationMs",
+          "cooldownMs",
+          "rateLimitPerMinute",
+          "patternId",
+          "enabled",
+          "updatedAt"
+        ]
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspaceId": { "type": "string" },
+          "creatorId": { "type": "string" },
+          "deviceId": { "type": "string" },
+          "ruleSetId": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "armed", "stopped"]
+          },
+          "maxIntensity": { "type": "integer" },
+          "maxDurationMs": { "type": "integer" },
+          "sequence": { "type": "integer", "format": "int64" },
+          "armedAt": { "type": "string", "format": "date-time" },
+          "stopReason": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "creatorId",
+          "deviceId",
+          "ruleSetId",
+          "status",
+          "maxIntensity",
+          "maxDurationMs",
+          "sequence",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PairingBundle": {
+        "type": "object",
+        "properties": {
+          "server_transport_public_key": { "type": "string" },
+          "nonce": { "type": "string" },
+          "ciphertext": { "type": "string" }
+        },
+        "required": ["server_transport_public_key", "nonce", "ciphertext"]
+      },
+      "UsageLedgerEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspace_id": { "type": "string" },
+          "session_id": { "type": "string" },
+          "metric": { "type": "string" },
+          "units": { "type": "number" },
+          "occurred_at": { "type": "string", "format": "date-time" },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["id", "workspace_id", "session_id", "metric", "units", "occurred_at", "metadata"]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "workspace_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "session_id": { "type": "string" },
+          "kind": { "type": "string" },
+          "actor": { "type": "string" },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "occurred_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "workspace_id", "creator_id", "kind", "actor", "details", "occurred_at"]
+      },
+      "InboundEventRequest": {
+        "type": "object",
+        "properties": {
+          "event_type": { "type": "string" },
+          "workspace_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "source_id": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "occurred_at": { "type": "string", "format": "date-time" },
+          "idempotency_key": { "type": "string" },
+          "signature": { "type": "string" },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "event_type",
+          "workspace_id",
+          "creator_id",
+          "source_id",
+          "amount",
+          "currency",
+          "occurred_at",
+          "idempotency_key",
+          "signature",
+          "metadata"
+        ]
+      },
+      "ControlCommand": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "sequence": { "type": "integer", "format": "int64" },
+          "device_id": { "type": "string" },
+          "action": {
+            "type": "string",
+            "enum": ["apply", "stop-all", "heartbeat"]
+          },
+          "intensity": { "type": "integer" },
+          "duration_ms": { "type": "integer" },
+          "pattern_id": { "type": "string" },
+          "nonce": { "type": "string" },
+          "issued_at": { "type": "string", "format": "date-time" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "ciphertext": { "type": "string" },
+          "signature": { "type": "string" }
+        },
+        "required": [
+          "session_id",
+          "sequence",
+          "device_id",
+          "action",
+          "intensity",
+          "duration_ms",
+          "pattern_id",
+          "nonce",
+          "issued_at",
+          "expires_at",
+          "ciphertext",
+          "signature"
+        ]
+      },
+      "TelemetryEvent": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "sequence": { "type": "integer", "format": "int64" },
+          "status": {
+            "type": "string",
+            "enum": ["ack", "executing", "stopped", "error"]
+          },
+          "executed_at": { "type": "string", "format": "date-time" },
+          "device_state": { "type": "string" },
+          "latency_ms": { "type": "number" },
+          "error_code": { "type": "string" },
+          "stop_reason": { "type": "string" }
+        },
+        "required": ["session_id", "sequence", "status", "executed_at", "device_state", "latency_ms"]
+      },
+      "IngestTelemetryRequest": {
+        "type": "object",
+        "properties": {
+          "sequence": { "type": "integer", "format": "int64" },
+          "status": {
+            "type": "string",
+            "enum": ["ack", "executing", "stopped", "error"]
+          },
+          "executed_at": { "type": "string", "format": "date-time" },
+          "device_state": { "type": "string" },
+          "latency_ms": { "type": "number" },
+          "error_code": { "type": "string" },
+          "stop_reason": { "type": "string" }
+        },
+        "required": ["sequence", "status", "device_state", "latency_ms"]
+      },
+      "MetricsSnapshot": {
+        "type": "object",
+        "properties": {
+          "ack_count": { "type": "integer" },
+          "ack_p50_ms": { "type": "number" },
+          "ack_p95_ms": { "type": "number" },
+          "webhook_failures": { "type": "integer", "format": "int64" },
+          "rule_rejections": { "type": "integer", "format": "int64" },
+          "panic_stops": { "type": "integer", "format": "int64" },
+          "per_region_failures": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "required": [
+          "ack_count",
+          "ack_p50_ms",
+          "ack_p95_ms",
+          "webhook_failures",
+          "rule_rejections",
+          "panic_stops",
+          "per_region_failures"
+        ]
+      },
+      "WorkspaceOverview": {
+        "type": "object",
+        "properties": {
+          "workspace": { "$ref": "#/components/schemas/Workspace" },
+          "creator": { "$ref": "#/components/schemas/Creator" },
+          "bridges": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DeviceBridge" }
+          },
+          "devices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Device" }
+          },
+          "rulesets": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RuleSet" }
+          },
+          "sessions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Session" }
+          },
+          "recent_usage": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UsageLedgerEntry" }
+          },
+          "recent_audit": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AuditEvent" }
+          },
+          "recent_telemetry": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TelemetryEvent" }
+          },
+          "metrics": { "$ref": "#/components/schemas/MetricsSnapshot" },
+          "generated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "workspace",
+          "creator",
+          "bridges",
+          "devices",
+          "rulesets",
+          "sessions",
+          "recent_usage",
+          "recent_audit",
+          "recent_telemetry",
+          "metrics",
+          "generated_at"
+        ]
+      },
+      "PairDeviceBridgeRequest": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "bridge_id": { "type": "string" },
+          "bridge_name": { "type": "string" },
+          "transport_public_key": { "type": "string" },
+          "device_name": { "type": "string" },
+          "capability": {
+            "type": "string",
+            "enum": ["vibrate", "oscillate", "rotate"]
+          },
+          "max_intensity": { "type": "integer" }
+        },
+        "required": ["workspace_id", "creator_id", "transport_public_key", "device_name", "capability", "max_intensity"]
+      },
+      "PairDeviceBridgeResponse": {
+        "type": "object",
+        "properties": {
+          "bridge": { "$ref": "#/components/schemas/DeviceBridge" },
+          "device": { "$ref": "#/components/schemas/Device" },
+          "session_key_bundle": { "$ref": "#/components/schemas/PairingBundle" },
+          "server_signing_public_key": { "type": "string" }
+        },
+        "required": ["bridge", "device", "session_key_bundle", "server_signing_public_key"]
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "device_id": { "type": "string" },
+          "rule_set_id": { "type": "string" },
+          "max_intensity": { "type": "integer" },
+          "max_duration_ms": { "type": "integer" }
+        },
+        "required": ["workspace_id", "creator_id", "device_id", "rule_set_id", "max_intensity", "max_duration_ms"]
+      },
+      "ArmSessionRequest": {
+        "type": "object",
+        "properties": {
+          "bridge_id": { "type": "string" },
+          "expires_in_ms": { "type": "integer" }
+        },
+        "required": ["bridge_id", "expires_in_ms"]
+      },
+      "StopSessionRequest": {
+        "type": "object",
+        "properties": {
+          "reason": { "type": "string" }
+        },
+        "required": ["reason"]
+      },
+      "UpsertRuleSetRequest": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "amount_step_cents": { "type": "integer", "format": "int64" },
+          "intensity_step": { "type": "integer" },
+          "max_intensity": { "type": "integer" },
+          "duration_per_step_ms": { "type": "integer" },
+          "max_duration_ms": { "type": "integer" },
+          "cooldown_ms": { "type": "integer" },
+          "rate_limit_per_minute": { "type": "integer" },
+          "pattern_id": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        },
+        "required": [
+          "workspace_id",
+          "creator_id",
+          "amount_step_cents",
+          "intensity_step",
+          "max_intensity",
+          "duration_per_step_ms",
+          "max_duration_ms",
+          "cooldown_ms",
+          "rate_limit_per_minute",
+          "pattern_id",
+          "enabled"
+        ]
+      },
+      "HotZonesResponse": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "InboundEventAccepted": {
+        "type": "object",
+        "properties": {
+          "accepted": { "type": "boolean" },
+          "command": { "$ref": "#/components/schemas/ControlCommand" },
+          "usage": { "$ref": "#/components/schemas/UsageLedgerEntry" }
+        },
+        "required": ["accepted", "command", "usage"]
+      }
+    }
+  }
+}
