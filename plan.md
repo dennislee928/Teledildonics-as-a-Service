@@ -63,15 +63,17 @@ Exit criteria:
 - Metrics and health are sufficient for hosted demo operations.
 
 ## Phase 5: CI And Release Hygiene
-Status: `pending`
+Status: `completed`
 
-- [ ] Add GitHub Actions for Go, Node, and Rust test suites.
-- [ ] Add a workflow that builds the demo container image on pull requests.
-- [ ] Fail CI on workspace contract regressions between API and SDK types.
-- [ ] Publish a short developer runbook for local demo validation.
+- [x] Add GitHub Actions for Go, Node, and Rust test suites.
+- [x] Add a workflow that builds the demo container image on pull requests.
+- [x] Fail CI on workspace contract regressions between API and SDK types.
+- [x] Publish a short developer runbook for local demo validation.
+- [x] Serve a first-party OpenAPI document plus Swagger UI from the control API.
 
 Exit criteria:
 - Every PR gets automated build and test coverage across all three stacks.
+- API consumers can self-serve against live docs from a fresh local checkout.
 
 ## Known Risks To Track
 - Demo seeding can drift from real consent and pairing flows if it is not clearly isolated as demo-only behavior.

@@ -46,6 +46,7 @@ npm run build
 
 ```bash
 go test ./...
+npm run contract-check
 npm test
 cargo test -p companion-core
 ```
@@ -75,6 +76,13 @@ curl -H 'X-Workspace-Api-Key: taas_demo_workspace_key' \
 
 Bridge-facing transport routes live under `/bridge/v1/*` instead. They use a session grant token derived from the session key and current bridge grant, not a workspace API key. See [`docs/relay-transport.md`](./docs/relay-transport.md) for the transport contract and the current demo-vs-production caveats.
 
+The API also serves first-party reference docs directly:
+
+- Swagger UI: [`/docs/`](http://127.0.0.1:8080/docs/)
+- Raw OpenAPI spec: [`/openapi.json`](http://127.0.0.1:8080/openapi.json)
+
+For a full local verification flow, see [`docs/runbooks/local-demo-validation.md`](./docs/runbooks/local-demo-validation.md).
+
 You can switch persistence layers with:
 
 - `STORE_REPOSITORY_BACKEND=memory|postgres`
@@ -86,6 +94,8 @@ The repository now includes a root `Dockerfile` that builds the Go control API a
 
 - `/demo/hosted-control/`
 - `/demo/creator-console/`
+- `/docs/`
+- `/openapi.json`
 - `/healthz`
 - `/readyz`
 - `/metrics`

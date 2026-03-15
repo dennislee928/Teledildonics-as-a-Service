@@ -12,7 +12,7 @@ import {
   Cpu
 } from "lucide-react";
 import { TaasProvider } from "@/components/TaasProvider";
-import { NothingCard, DotMatrixText, DottedDivider } from "@dennislee928/nothingx-react-components";
+import { NothingCard, DotMatrixText } from "@dennislee928/nothingx-react-components";
 
 const inter = Inter({ subsets: ["latin"] });
 

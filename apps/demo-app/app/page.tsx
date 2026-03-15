@@ -63,7 +63,7 @@ export default function Dashboard() {
           <h2 className="text-5xl font-black tracking-tighter">OVERVIEW</h2>
         </div>
         <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground bg-white/5 px-4 py-2 rounded-full border border-white/10">
-          <TerminalBlink color="#ff0000" />
+          <TerminalBlink />
           <span>LAST_SYNC: {new Date(overview.generated_at).toLocaleTimeString()}</span>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function Dashboard() {
               <h3 className="text-sm font-black tracking-widest flex items-center gap-3">
                 <Radio size={16} className="text-red-500" /> LIVE_TELEMETRY_FEED
               </h3>
-              <PillBadge color="#333">REAL_TIME_v4</PillBadge>
+              <PillBadge variant="neutral">REAL_TIME_v4</PillBadge>
             </div>
             
             <div className="space-y-1">
@@ -111,7 +111,7 @@ export default function Dashboard() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-black text-xs tracking-tight">{t.device_state}</span>
-                      <DottedDivider style={{ flex: 1, opacity: 0.2 }} />
+                      <div className="flex-1 opacity-20"><DottedDivider length={30} /></div>
                       <span className={`text-[9px] font-mono px-2 py-0.5 rounded border ${
                         t.status === 'ack' ? 'border-green-500/30 text-green-500' : 'border-red-500/30 text-red-500'
                       }`}>

@@ -79,7 +79,7 @@ export default function SimulatorPage() {
                           <Zap size={16} className="text-muted-foreground peer-checked:text-red-500" />
                           <span className="font-mono text-sm uppercase">{s.id}</span>
                         </div>
-                        <PillBadge color="#333">{s.deviceId}</PillBadge>
+                        <PillBadge variant="neutral">{s.deviceId}</PillBadge>
                       </div>
                     </label>
                   ))}
@@ -97,7 +97,7 @@ export default function SimulatorPage() {
                 
                 <div className="flex justify-center mb-8">
                    <div className="bg-red-500/5 p-6 rounded-3xl border border-red-500/10">
-                      <SegmentedDisplay value={amount} color="#ff0000" size={40} />
+                      <SegmentedDisplay value={amount.split('.')[0]} color="#ff0000" size={40} />
                    </div>
                 </div>
 
@@ -129,7 +129,7 @@ export default function SimulatorPage() {
         <div className="lg:col-span-5 space-y-6">
           <NothingCard dark style={{ border: '1px solid #222', padding: 24, background: '#0a0a0a' }}>
             <h3 className="text-[10px] font-black tracking-widest text-muted-foreground mb-6 flex items-center gap-2">
-              <TerminalBlink color="#ff0000" /> SYSTEM_OUTPUT
+              <TerminalBlink /> SYSTEM_OUTPUT
             </h3>
             
             <div className="min-h-[200px] font-mono text-[10px] leading-relaxed">
@@ -137,7 +137,7 @@ export default function SimulatorPage() {
                 <div className={`space-y-4 animate-in fade-in duration-300 ${result.success ? 'text-green-500' : 'text-red-500'}`}>
                   <p className="font-black underline">[{result.success ? 'SUCCESS' : 'FAILED'}]</p>
                   <p className="opacity-80">{result.message}</p>
-                  <DottedDivider style={{ opacity: 0.2 }} />
+                  <div className="opacity-20"><DottedDivider length={40} /></div>
                   <p className="text-white/20 uppercase tracking-tighter">Event_Hash: {Math.random().toString(36).substring(7).toUpperCase()}</p>
                 </div>
               ) : (

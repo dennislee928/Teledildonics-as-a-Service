@@ -4,7 +4,16 @@ import { useEffect, useState, use } from "react";
 import { useTaas } from "@/components/TaasProvider";
 import { TelemetryEvent } from "@taas/domain-sdk";
 import Link from "next/link";
-import { ChevronLeft, Activity, Info, BarChart } from "lucide-react";
+import { ChevronLeft, Activity, Info, BarChart, Radio, Cpu, Zap } from "lucide-react";
+import { 
+  NothingCard, 
+  DotMatrixText, 
+  DottedDivider,
+  PillBadge,
+  TerminalBlink,
+  GlitchText,
+  ProgressDots
+} from "@dennislee928/nothingx-react-components";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,85 +31,130 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   }, [client, id]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-4">
-        <Link href="/sessions" className="p-2 hover:bg-muted rounded-full transition-colors">
-          <ChevronLeft size={24} />
+    <div className="space-y-10 animate-in fade-in duration-1000">
+      <div className="flex items-center gap-6">
+        <Link href="/sessions" className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 transition-all group">
+          <ChevronLeft size={24} className="group-hover:text-red-500 transition-colors" />
         </Link>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Session Monitoring</h2>
-          <p className="text-muted-foreground">Session ID: <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">{id}</code></p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-black text-red-500 uppercase tracking-[0.2em]">Live_Node_Monitor</span>
+            <TerminalBlink />
+          </div>
+          <h2 className="text-4xl font-black tracking-tighter uppercase">{id}</h2>
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-12">
         {/* Real-time Indicator */}
-        <div className="border rounded-xl p-8 bg-card shadow-sm flex flex-col items-center justify-center text-center space-y-6 min-h-[400px]">
-          <div className={`w-40 h-40 rounded-full border-4 flex items-center justify-center transition-all duration-200 ${
-            activeTelemetry ? 'border-accent bg-accent/5 scale-110' : 'border-muted bg-muted/20'
-          }`}>
-            <Activity size={60} className={activeTelemetry ? 'text-accent animate-pulse' : 'text-muted-foreground opacity-30'} />
-          </div>
-          <div className="space-y-2">
-            <h3 className="font-bold text-2xl uppercase tracking-tighter">
-              {activeTelemetry?.device_state || 'IDLE'}
-            </h3>
-            <p className="text-muted-foreground text-sm flex items-center gap-2 justify-center">
-              <span className={`w-2 h-2 rounded-full ${activeTelemetry ? 'bg-green-500 animate-ping' : 'bg-muted'}`} />
-              {activeTelemetry ? 'Command Executing' : 'Monitoring for activity...'}
-            </p>
-          </div>
-          
-          {activeTelemetry && (
-            <div className="grid grid-cols-2 gap-8 pt-4 w-full px-12">
-              <div className="text-center">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Status</p>
-                <p className="text-lg font-mono text-green-600">{activeTelemetry.status}</p>
+        <div className="lg:col-span-7">
+          <NothingCard dark style={{ border: '1px solid #222', padding: 60, background: '#050505', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="relative mb-12">
+              <div className={`w-56 h-56 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
+                activeTelemetry ? 'border-red-500 bg-red-500/5 scale-105' : 'border-white/5 bg-transparent'
+              }`}>
+                <Activity size={80} className={activeTelemetry ? 'text-red-500 animate-pulse' : 'text-white/10'} />
               </div>
-              <div className="text-center">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Latency</p>
-                <p className="text-lg font-mono">{activeTelemetry.latency_ms.toFixed(1)}ms</p>
+              
+              {/* Outer orbit dots */}
+              <div className="absolute inset-[-20px] border border-white/5 rounded-full animate-[spin_20s_linear_infinite]" />
+              <div className="absolute inset-[-40px] border border-white/5 border-dashed rounded-full animate-[spin_30s_linear_infinite_reverse]" />
+            </div>
+
+            <div className="text-center space-y-4">
+              <div className="h-12 flex items-center justify-center">
+                {activeTelemetry ? (
+                  <div className="text-3xl">
+                    <GlitchText active>{activeTelemetry.device_state.toUpperCase()}</GlitchText>
+                  </div>
+                ) : (
+                  <h3 className="text-3xl font-black opacity-20 tracking-widest uppercase">NODE_IDLE</h3>
+                )}
+              </div>
+              
+              <div className="flex flex-col items-center gap-4">
+                <ProgressDots count={12} value={activeTelemetry ? Math.floor(Math.random() * 100) : 0} color="#ff0000" />
+                <p className="text-[10px] font-mono tracking-[0.3em] text-muted-foreground uppercase">
+                  {activeTelemetry ? 'Signal_Execution_v4' : 'Awaiting_Relay_Command'}
+                </p>
               </div>
             </div>
-          )}
+            
+            {activeTelemetry && (
+              <div className="grid grid-cols-2 gap-12 pt-12 w-full max-w-sm">
+                <div className="text-center space-y-1">
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">RELAY_ACK</p>
+                  <p className="text-2xl font-mono text-white font-black">{activeTelemetry.status.toUpperCase()}</p>
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">LATENCY_MS</p>
+                  <p className="text-2xl font-mono text-white font-black">{activeTelemetry.latency_ms.toFixed(1)}</p>
+                </div>
+              </div>
+            )}
+          </NothingCard>
         </div>
 
         {/* Live Stream */}
-        <div className="border rounded-xl bg-card overflow-hidden flex flex-col h-[400px]">
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-muted/10">
-            <h3 className="font-semibold text-sm flex items-center gap-2">
-              <BarChart size={16} /> Telemetry Stream
-            </h3>
-            <span className="text-[10px] font-mono text-muted-foreground uppercase">Real-time SSE</span>
-          </div>
-          <div className="flex-1 overflow-auto p-4 font-mono text-[10px] space-y-1">
-            {telemetry.map((t, i) => (
-              <div key={i} className={`flex gap-3 px-2 py-1 rounded transition-colors ${i === 0 ? 'bg-accent/10 border-l-2 border-accent' : ''}`}>
-                <span className="text-muted-foreground">{new Date(t.executed_at).toLocaleTimeString()}</span>
-                <span className={`font-bold uppercase ${t.status === 'ack' ? 'text-green-600' : 'text-accent'}`}>{t.status}</span>
-                <span className="flex-1 text-muted-foreground">STATE: {t.device_state}</span>
-                <span className="text-muted-foreground opacity-50">{t.latency_ms.toFixed(0)}ms</span>
-              </div>
-            ))}
-            {telemetry.length === 0 && (
-              <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                Waiting for incoming telemetry...
-              </div>
-            )}
-          </div>
+        <div className="lg:col-span-5">
+          <NothingCard dark style={{ border: '1px solid #222', background: '#0a0a0a', height: '100%', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+              <h3 className="text-xs font-black tracking-widest flex items-center gap-3">
+                <Radio size={16} className="text-red-500" /> KERNEL_STREAM
+              </h3>
+              <PillBadge variant="neutral">SSE_LAYER_7</PillBadge>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-6 font-mono text-[10px] space-y-2 scrollbar-hide">
+              {telemetry.map((t, i) => (
+                <div key={i} className={`group flex gap-4 px-4 py-2 rounded-xl transition-all ${i === 0 ? 'bg-red-500/10 border border-red-500/20 translate-x-1' : 'hover:bg-white/5 border border-transparent opacity-60'}`}>
+                  <span className="text-muted-foreground font-bold whitespace-nowrap">{new Date(t.executed_at).toLocaleTimeString([], { hour12: false, fractionalSecondDigits: 1 })}</span>
+                  <span className={`font-black uppercase w-12 ${t.status === 'ack' ? 'text-green-500' : 'text-red-500'}`}>{t.status}</span>
+                  <span className="flex-1 text-white/80 tracking-tighter">EXEC: {t.device_state}</span>
+                  <span className="text-[9px] font-black text-red-500 opacity-40">{t.latency_ms.toFixed(0)}MS</span>
+                </div>
+              ))}
+              {telemetry.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center opacity-20 py-20">
+                  <Activity size={32} className="mb-4" />
+                  <p className="uppercase tracking-[0.3em]">Awaiting_Socket_Data</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-black border-t border-white/5">
+               <div className="flex items-center gap-4 text-[10px] font-mono text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span>SSE_ACTIVE</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    <span>HEARTBEAT_OK</span>
+                  </div>
+               </div>
+            </div>
+          </NothingCard>
         </div>
       </div>
 
-      <div className="border rounded-xl p-6 bg-accent/5 border-accent/10 flex items-start gap-4">
-        <Info className="text-accent mt-0.5" size={20} />
-        <div className="text-sm text-muted-foreground space-y-2">
-          <p className="font-bold text-foreground">Understanding Telemetry</p>
-          <p>
-            This view uses standard <strong>Server-Sent Events (SSE)</strong> provided by the Control Plane. 
-            Telemetry is emitted directly by the Companion App and routed through the Relay to your browser.
-          </p>
-        </div>
+      <div className="grid md:grid-cols-3 gap-6">
+        <FeatureInfo icon={<Cpu size={18} />} title="Edge_Enforcement" desc="Command validation occurs locally at the companion node with zero-latency safety checks." />
+        <FeatureInfo icon={<Zap size={18} />} title="Atomic_Sync" desc="Synchronized haptic patterns across multiple devices with sub-10ms jitter compensation." />
+        <FeatureInfo icon={<BarChart size={18} />} title="Telemetry_Insights" desc="Real-time performance metrics and error-rate monitoring for all active sessions." />
       </div>
+    </div>
+  );
+}
+
+function FeatureInfo({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  return (
+    <div className="p-6 rounded-[24px] bg-white/2 border border-white/5 hover:border-red-500/20 transition-all group">
+      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-4 text-muted-foreground group-hover:text-red-500 transition-colors">
+        {icon}
+      </div>
+      <h4 className="font-black text-xs tracking-widest uppercase mb-2">{title}</h4>
+      <p className="text-[10px] font-mono leading-relaxed text-muted-foreground uppercase tracking-tighter opacity-60">{desc}</p>
     </div>
   );
 }

@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @taas/domain-sdk && npm run build --workspace @taas/embed-sdk && npm run build --workspace @taas/creator-console && npm run build --workspace @taas/hosted-control",
+    "contract-check": "node scripts/check-contracts.mjs",
     "typecheck": "npm run typecheck --workspace @taas/domain-sdk && npm run typecheck --workspace @taas/embed-sdk && npm run typecheck --workspace @taas/creator-console && npm run typecheck --workspace @taas/hosted-control",
     "test": "npm run build && node --test tests/*.test.mjs",
     "dev:creator-console": "npm run build --workspace @taas/domain-sdk && python3 -m http.server 4173 -d apps/creator-console",

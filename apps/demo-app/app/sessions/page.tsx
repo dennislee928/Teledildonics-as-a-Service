@@ -126,7 +126,7 @@ export default function SessionsPage() {
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-black text-xl tracking-tighter uppercase">{session.id}</span>
-                      <PillBadge color={session.status === 'armed' ? '#ff0000' : '#333'}>
+                      <PillBadge variant={session.status === 'armed' ? 'live' : 'off'}>
                         {session.status.toUpperCase()}
                       </PillBadge>
                     </div>
@@ -163,7 +163,7 @@ export default function SessionsPage() {
                   )}
                 </div>
               </div>
-              <DottedDivider style={{ marginTop: 20, opacity: 0.1 }} />
+              <div className="mt-5 opacity-10"><DottedDivider length={100} /></div>
             </NothingCard>
           ))}
           

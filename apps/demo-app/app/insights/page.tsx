@@ -7,7 +7,6 @@ import {
   NothingCard, 
   DotMatrixText, 
   DottedDivider,
-  PillBadge,
   TerminalBlink
 } from "@dennislee928/nothingx-react-components";
 
@@ -47,7 +46,7 @@ export default function InsightsPage() {
                 <Target size={16} className="text-red-500" /> HOT_ZONE_DISTRIBUTION
               </h3>
               <div className="flex items-center gap-2 font-mono text-[9px] text-muted-foreground uppercase bg-white/5 px-3 py-1 rounded-full">
-                <TerminalBlink color="#ff0000" /> Real_Time_Aggregator
+                <TerminalBlink /> Real_Time_Aggregator
               </div>
             </div>
 
@@ -98,7 +97,7 @@ export default function InsightsPage() {
             </h4>
             <p className="text-[11px] text-white/60 leading-relaxed font-mono uppercase tracking-tighter">
               Your dominant engagement zone is <strong className="text-white">${sortedZones[0]?.amount.toFixed(2) || "0.00"}</strong>. 
-              <DottedDivider style={{ margin: '12px 0', opacity: 0.1 }} />
+              <div className="my-3 opacity-10"><DottedDivider length={40} /></div>
               RECOMMENDATION: Increase intensity curves for this bucket to maximize creator retention and fan satisfaction.
             </p>
           </NothingCard>

@@ -59,7 +59,9 @@ export default function PairingPage() {
             </div>
             
             <div className="space-y-4 max-w-md">
-              <GlitchText color="#fff" fontSize={18}>AWAITING_X25519_EXCHANGE</GlitchText>
+              <div className="text-lg">
+                <GlitchText active>AWAITING_X25519_EXCHANGE</GlitchText>
+              </div>
               <p className="text-xs text-muted-foreground font-mono leading-relaxed uppercase tracking-tighter opacity-50">
                 The Companion App must present a valid transport public key to negotiate a shared secret. 
                 All subsequent commands will be sealed with this ephemeral session key.

@@ -775,7 +775,10 @@
             "type": "string",
             "enum": ["cloudflare-realtime", "websocket-fallback"]
           },
-          "status": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["paired", "online", "offline"]
+          },
           "fallbackWebsocketUrl": { "type": "string" },
           "publicKey": { "type": "string" },
           "transportPublicKey": { "type": "string" },

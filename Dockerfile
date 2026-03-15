@@ -21,6 +21,6 @@ ENV PORT=8080
 ENV STATIC_ROOT=/srv/taas
 COPY --from=go-builder /out/control-api /usr/local/bin/control-api
 COPY --from=web-builder /workspace/apps /srv/taas/apps
+COPY docs /srv/taas/docs
 EXPOSE 8080
 CMD ["sh", "-c", "CONTROL_API_ADDR=0.0.0.0:${PORT} control-api"]
-

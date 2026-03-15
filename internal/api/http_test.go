@@ -200,6 +200,43 @@ func TestAPIMetricsExposeOperationalSnapshot(t *testing.T) {
 	}
 }
 
+func TestAPIServesOpenAPISpec(t *testing.T) {
+	server := newTestServerWithStaticRoot(t, repoRoot(t))
+	request := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), `"openapi": "3.1.0"`) {
+		t.Fatalf("expected openapi version in body, got %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"/v1/workspaces/{workspaceId}/insights/hot-zones"`) {
+		t.Fatalf("expected hot-zones path in spec body, got %s", recorder.Body.String())
+	}
+}
+
+func TestAPIServesSwaggerDocsPage(t *testing.T) {
+	server := newTestServerWithStaticRoot(t, repoRoot(t))
+	request := httptest.NewRequest(http.MethodGet, "/docs/", nil)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "TaaS API Reference") {
+		t.Fatalf("expected docs title in body, got %s", body)
+	}
+	if !strings.Contains(body, "/openapi.json") {
+		t.Fatalf("expected openapi link in docs body, got %s", body)
+	}
+}
+
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	repository := store.NewMemoryStore()

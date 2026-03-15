@@ -90,6 +90,11 @@ assert.deepEqual(
   schemaEnum("DeviceBridge", "transport"),
   "DeviceBridge.transport drifted from the OpenAPI enum"
 );
+assert.deepEqual(
+  extractUnionValues("DeviceBridge", "status"),
+  schemaEnum("DeviceBridge", "status"),
+  "DeviceBridge.status drifted from the OpenAPI enum"
+);
 
 const expectedPaths = [
   ["/v1/device-bridges/pair", "post", "pairDeviceBridge"],
