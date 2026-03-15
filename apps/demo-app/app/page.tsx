@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTaas } from "@/components/TaasProvider";
 import { WorkspaceOverview } from "@taas/domain-sdk";
+import Link from "next/link";
 import { 
   Activity, 
   Clock, 
@@ -10,163 +11,182 @@ import {
   Monitor,
   Zap,
   ShieldCheck,
-  Radio
+  Radio,
+  ArrowRight,
+  Shield,
+  ZapOff,
+  Box,
+  Fingerprint
 } from "lucide-react";
 import { 
   NothingCard, 
   DotMatrixText, 
   PillBadge, 
   DottedDivider,
-  TerminalBlink
+  TerminalBlink,
+  GlitchText,
+  NothingButton
 } from "@dennislee928/nothingx-react-components";
 
-export default function Dashboard() {
+export default function Home() {
   const client = useTaas();
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     client.getWorkspaceOverview("ws_demo", "cr_demo")
       .then(setOverview)
-      .catch(err => setError(err.message))
+      .catch(console.error)
       .finally(() => setLoading(false));
   }, [client]);
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-full gap-4">
-      <div className="w-12 h-12 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-      <DotMatrixText color="#888" dotSize={2}>INITIALIZING_SYSTEM</DotMatrixText>
-    </div>
-  );
-
-  if (error) return (
-    <NothingCard dark style={{ border: '1px solid #ff0000', padding: 32 }}>
-      <div className="flex items-center gap-4 text-red-500 mb-4">
-        <AlertTriangle size={32} />
-        <h2 className="text-2xl font-black">CRITICAL_ERROR</h2>
-      </div>
-      <p className="font-mono text-sm text-red-400/80">{error}</p>
-    </NothingCard>
-  );
-
-  if (!overview) return null;
-
   return (
-    <div className="space-y-10 animate-in fade-in duration-1000">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <ShieldCheck className="text-red-500" size={20} />
-            <span className="text-[10px] font-mono tracking-[0.3em] text-red-500/80 uppercase font-black">SECURE_ENVIRONMENT_ACTIVE</span>
+    <div className="space-y-24 animate-in fade-in duration-1000">
+      {/* Hero Section */}
+      <section className="relative pt-12 pb-20 overflow-hidden">
+        <div className="flex flex-col items-center text-center space-y-8 relative z-10">
+          <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-red-500/5 border border-red-500/20 mb-4 animate-bounce">
+            <Shield size={14} className="text-red-500" />
+            <span className="text-[10px] font-black tracking-[0.3em] text-red-500 uppercase">KERNEL_PROVISION_ACTIVE</span>
           </div>
-          <h2 className="text-5xl font-black tracking-tighter">OVERVIEW</h2>
-        </div>
-        <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground bg-white/5 px-4 py-2 rounded-full border border-white/10">
-          <TerminalBlink />
-          <span>LAST_SYNC: {new Date(overview.generated_at).toLocaleTimeString()}</span>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard 
-          title="ACTIVE_SESSIONS" 
-          value={overview.sessions.length.toString().padStart(2, '0')} 
-          icon={<Activity size={16} />} 
-        />
-        <StatCard 
-          title="IOT_NODES" 
-          value={overview.devices.filter(d => d.connected).length.toString().padStart(2, '0')} 
-          icon={<Monitor size={16} />} 
-        />
-        <StatCard 
-          title="LOGIC_RULES" 
-          value={overview.rulesets.filter(r => r.enabled).length.toString().padStart(2, '0')} 
-          icon={<Zap size={16} />} 
-        />
-        <StatCard 
-          title="PANIC_STOPS" 
-          value={overview.metrics.panic_stops.toString().padStart(2, '0')} 
-          icon={<AlertTriangle size={16} />} 
-          critical={overview.metrics.panic_stops > 0}
-        />
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-12">
-        {/* Recent Telemetry */}
-        <div className="lg:col-span-8">
-          <NothingCard dark style={{ border: '1px solid #222', height: '100%', padding: 24 }}>
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-sm font-black tracking-widest flex items-center gap-3">
-                <Radio size={16} className="text-red-500" /> LIVE_TELEMETRY_FEED
-              </h3>
-              <PillBadge variant="neutral">REAL_TIME_v4</PillBadge>
+          
+          <div className="space-y-2">
+            <h1 className="text-7xl md:text-9xl font-black tracking-tighter leading-none italic">
+              <GlitchText active>TAAS_CORE</GlitchText>
+            </h1>
+            <div className="flex justify-center">
+              <DotMatrixText color="#888" dotSize={3}>PROTO_V2.4</DotMatrixText>
             </div>
-            
-            <div className="space-y-1">
-              {overview.recent_telemetry.slice(0, 8).map((t, i) => (
-                <div key={i} className="flex items-center gap-6 p-3 rounded-lg hover:bg-white/5 transition-colors group">
-                  <span className="font-mono text-[10px] text-muted-foreground w-16">{new Date(t.executed_at).toLocaleTimeString([], { hour12: false })}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-xs tracking-tight">{t.device_state}</span>
-                      <div className="flex-1 opacity-20"><DottedDivider length={30} /></div>
-                      <span className={`text-[9px] font-mono px-2 py-0.5 rounded border ${
-                        t.status === 'ack' ? 'border-green-500/30 text-green-500' : 'border-red-500/30 text-red-500'
-                      }`}>
-                        {t.status.toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="font-mono text-[10px] text-muted-foreground">{t.latency_ms.toFixed(1)}ms</span>
-                </div>
-              ))}
-              {overview.recent_telemetry.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                  <Activity size={48} strokeWidth={1} />
-                  <p className="text-[10px] font-mono mt-4 tracking-widest">AWAITING_DATA_STREAM</p>
-                </div>
-              )}
-            </div>
-          </NothingCard>
+          </div>
+
+          <p className="max-w-2xl text-lg text-muted-foreground font-mono leading-relaxed uppercase tracking-tighter opacity-60 px-6">
+            The world's first industrial-grade telemetry relay for remote haptic synchronization. 
+            Zero-latency. Zero-trust. Pure sensation.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 pt-8">
+            <Link href="/explorer/sessions">
+              <NothingButton onClick={() => {}} variant="primary">
+                INITIALIZE_WORKSPACE
+              </NothingButton>
+            </Link>
+            <Link href="/explorer/pairing">
+              <button className="px-8 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs font-black tracking-[0.2em] uppercase">
+                Pair_Device_Bridge
+              </button>
+            </Link>
+          </div>
         </div>
 
-        {/* Audit Log */}
-        <div className="lg:col-span-4">
-          <NothingCard dark style={{ border: '1px solid #222', height: '100%', padding: 24, background: '#050505' }}>
-            <div className="flex items-center gap-3 mb-8">
-              <Clock size={16} className="text-red-500" />
-              <h3 className="text-sm font-black tracking-widest uppercase">Security_Audit</h3>
+        {/* Decorative background elements */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-500/5 rounded-full blur-[120px] -z-10" />
+      </section>
+
+      {/* Quick Stats Banner */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-1">
+        <QuickStat label="Network_Nodes" value={overview?.devices.length.toString() || "00"} />
+        <QuickStat label="Relay_Streams" value={overview?.sessions.length.toString() || "00"} />
+        <QuickStat label="Uptime_Percent" value="99.99" />
+        <QuickStat label="Global_Regions" value="03" />
+      </section>
+
+      {/* Main Stats Grid */}
+      <section className="space-y-10">
+        <div className="flex items-end justify-between border-b border-white/10 pb-6">
+          <div>
+            <h2 className="text-4xl font-black tracking-tighter">NODE_TELEMETRY</h2>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-2">Live_Kernel_Metrics_Snapshot</p>
+          </div>
+          <div className="hidden sm:flex gap-2">
+             <PillBadge variant="live">Streaming</PillBadge>
+             <PillBadge variant="neutral">Secure</PillBadge>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <NothingCard dark style={{ border: '1px solid #222', padding: 32 }}>
+            <div className="flex items-center gap-4 mb-8 text-red-500">
+              <Activity size={24} />
+              <h3 className="text-sm font-black tracking-widest uppercase">System_Load</h3>
             </div>
-            
             <div className="space-y-6">
-              {overview.recent_audit.slice(0, 6).map((a, i) => (
-                <div key={i} className="relative pl-4 border-l border-white/10 group">
-                  <div className="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-red-500/40 group-hover:bg-red-500 transition-colors" />
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[9px] font-black text-red-500/80 tracking-tighter uppercase">{a.kind.replace('.', '_')}</span>
-                    <span className="text-[8px] font-mono text-muted-foreground">{new Date(a.occurred_at).toLocaleTimeString([], { hour12: false })}</span>
-                  </div>
-                  <p className="text-[11px] font-mono text-white/60 leading-tight">ACTOR: {a.actor}</p>
-                </div>
-              ))}
+              <MetricRow label="ACK_RATE" value={overview?.metrics.ack_count.toString() || "0"} />
+              <MetricRow label="P95_LATENCY" value={`${overview?.metrics.ack_p95_ms.toFixed(1) || "0"}ms`} />
+              <MetricRow label="ERROR_LOG" value={overview?.metrics.rule_rejections.toString() || "0"} />
+            </div>
+          </NothingCard>
+
+          <NothingCard dark style={{ border: '1px solid #222', padding: 32 }}>
+            <div className="flex items-center gap-4 mb-8 text-red-500">
+              <ShieldCheck size={24} />
+              <h3 className="text-sm font-black tracking-widest uppercase">Security_Layer</h3>
+            </div>
+            <div className="space-y-6">
+              <MetricRow label="AUTH_VERSION" value="X25519" />
+              <MetricRow label="ENCRYPTION" value="AES_GCM" />
+              <MetricRow label="ACTIVE_GRANTS" value={overview?.sessions.filter(s => s.status === 'armed').length.toString() || "0"} />
+            </div>
+          </NothingCard>
+
+          <NothingCard dark style={{ border: '1px solid #222', padding: 32 }}>
+            <div className="flex items-center gap-4 mb-8 text-red-500">
+              <Box size={24} />
+              <h3 className="text-sm font-black tracking-widest uppercase">Infrastructure</h3>
+            </div>
+            <div className="space-y-6">
+              <MetricRow label="REGION" value={overview?.workspace.region || "US_EAST"} />
+              <MetricRow label="PROVIDERS" value="RENDER_API" />
+              <MetricRow label="RELAY_TYPE" value="SECURE_SSE" />
             </div>
           </NothingCard>
         </div>
-      </div>
+      </section>
+
+      {/* Feature Highlight */}
+      <section className="grid lg:grid-cols-2 gap-12 items-center py-20 border-t border-white/5">
+        <div className="space-y-8">
+          <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center border border-white/10">
+            <Fingerprint size={32} className="text-red-500" />
+          </div>
+          <h2 className="text-5xl font-black tracking-tighter leading-tight italic uppercase">
+            Designed for <br /><span className="text-red-500">Extreme</span> Privacy
+          </h2>
+          <p className="text-muted-foreground font-mono uppercase tracking-tighter opacity-60 leading-relaxed">
+            Every command is cryptographically signed by our central authority and sealed using ephemeral session keys. 
+            We never see your haptic patterns. We only relay the heartbeat.
+          </p>
+          <div className="pt-4">
+             <Link href="/explorer/handshake" className="text-xs font-black tracking-widest text-red-500 hover:text-white transition-colors flex items-center gap-2 uppercase">
+               Explore Security Protocol <ArrowRight size={14} />
+             </Link>
+          </div>
+        </div>
+        <div className="relative aspect-square glass-dark rounded-[48px] border border-white/10 flex items-center justify-center overflow-hidden group">
+           <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 to-transparent" />
+           <div className="relative text-center animate-float">
+              <DotMatrixText color="#ff0000" dotSize={10}>SAFE</DotMatrixText>
+              <p className="font-mono text-[10px] mt-4 tracking-[0.5em] text-white/40">ZERO_TRUST_VERIFIED</p>
+           </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function StatCard({ title, value, icon, critical }: { title: string; value: string; icon: React.ReactNode; critical?: boolean }) {
+function QuickStat({ label, value }: { label: string; value: string }) {
   return (
-    <NothingCard dark style={{ border: critical ? '1px solid #ff0000' : '1px solid #222', padding: 20 }}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-[10px] font-black tracking-[0.2em] ${critical ? 'text-red-500' : 'text-muted-foreground'}`}>{title}</h3>
-        <span className={critical ? 'text-red-500 animate-pulse' : 'text-white/40'}>{icon}</span>
-      </div>
-      <DotMatrixText color={critical ? "#ff0000" : "#ffffff"} dotSize={critical ? 5 : 4}>{value}</DotMatrixText>
-    </NothingCard>
+    <div className="border border-white/5 p-8 bg-white/[0.01] hover:bg-white/[0.03] transition-colors group">
+      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 group-hover:text-red-500/50 transition-colors">{label}</p>
+      <p className="text-4xl font-black italic tracking-tighter group-hover:scale-105 transition-transform origin-left">{value}</p>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-end border-b border-white/5 pb-2">
+      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</span>
+      <span className="text-xs font-mono font-bold text-white/80">{value}</span>
+    </div>
   );
 }

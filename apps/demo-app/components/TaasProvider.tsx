@@ -9,7 +9,7 @@ export function TaasProvider({ children }: { children: React.ReactNode }) {
   const client = useMemo(() => {
     // In a real app, these would come from env vars or a login state
     return new TaasClient({
-      baseUrl: "http://localhost:8080",
+      baseUrl: "https://teledildonics-as-a-service.onrender.com",
       apiKey: "taas_demo_workspace_key",
     });
   }, []);

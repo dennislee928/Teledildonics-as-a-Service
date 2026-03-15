@@ -19,15 +19,47 @@ body {
 
 /* Custom dot pattern background */
 .dot-bg {
-  background-image: radial-gradient(#333 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-/* Glassmorphism utility */
-.glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Noise texture overlay */
+.noise-overlay::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.05;
+  z-index: 9999;
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  filter: contrast(120%) brightness(100%);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
 }
 
 h1, h2, h3 {
