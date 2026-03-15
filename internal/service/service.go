@@ -822,7 +822,7 @@ func (s *ControlService) dispatchHeartbeats(ctx context.Context) {
 			ExpiresAt:  now.Add(1 * time.Second),
 			Ciphertext: "", // Heartbeats are not encrypted payloads in this version, just signed
 		}
-		
+
 		sig, err := s.secure.SignControlCommand(hb)
 		if err != nil {
 			continue

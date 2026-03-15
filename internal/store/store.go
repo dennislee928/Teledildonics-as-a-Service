@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("not found")
-	ErrUnauthorized  = errors.New("unauthorized")
+	ErrNotFound       = errors.New("not found")
+	ErrUnauthorized   = errors.New("unauthorized")
 	ErrNotImplemented = errors.New("not implemented")
 )
 

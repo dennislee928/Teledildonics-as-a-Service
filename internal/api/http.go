@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 type Server struct {
 	service    *service.ControlService
 	repo       store.Repository
+	runtime    store.RuntimeStore
 	staticRoot string
 }
 
@@ -30,6 +32,7 @@ func NewServer(service *service.ControlService, repo store.Repository, staticRoo
 	return &Server{
 		service:    service,
 		repo:       repo,
+		runtime:    service.RuntimeStore(),
 		staticRoot: staticRoot,
 	}
 }
@@ -56,6 +59,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	mux.HandleFunc("/readyz", s.handleReadyz)
+	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/v1/inbound-events", s.handleInboundEvents)
 	mux.HandleFunc("/v1/device-bridges/pair", s.handlePairDeviceBridge)
 	mux.HandleFunc("/v1/sessions", s.handleSessions)
@@ -66,6 +71,66 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/workspaces/", s.handleWorkspaceRoutes)
 	s.registerStaticApps(mux)
 	return withCORS(s.withBridgeSessionAuth(s.withWorkspaceAPIKeyAuth(mux)))
+}
+
+func (s *Server) handleReadyz(writer http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), 2*time.Second)
+	defer cancel()
+
+	type checkState struct {
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+	checks := map[string]checkState{
+		"repository": {Status: "ok"},
+		"runtime":    {Status: "ok"},
+	}
+	status := http.StatusOK
+
+	if checker, ok := s.repo.(store.HealthChecker); ok {
+		if err := checker.HealthCheck(ctx); err != nil {
+			checks["repository"] = checkState{Status: "error", Error: err.Error()}
+			status = http.StatusServiceUnavailable
+		}
+	}
+	if checker, ok := s.runtime.(store.HealthChecker); ok {
+		if err := checker.HealthCheck(ctx); err != nil {
+			checks["runtime"] = checkState{Status: "error", Error: err.Error()}
+			status = http.StatusServiceUnavailable
+		}
+	}
+
+	overall := "ok"
+	if status != http.StatusOK {
+		overall = "degraded"
+	}
+	writeJSON(writer, status, map[string]any{
+		"status": overall,
+		"checks": checks,
+	})
+}
+
+func (s *Server) handleMetrics(writer http.ResponseWriter, _ *http.Request) {
+	snapshot := s.service.MetricsSnapshot()
+	armedSessions := len(s.repo.ListArmedSessions())
+
+	writer.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	fmt.Fprintf(writer, "taas_ack_count %d\n", snapshot.AckCount)
+	fmt.Fprintf(writer, "taas_ack_p50_ms %g\n", snapshot.AckP50MS)
+	fmt.Fprintf(writer, "taas_ack_p95_ms %g\n", snapshot.AckP95MS)
+	fmt.Fprintf(writer, "taas_webhook_failures_total %d\n", snapshot.WebhookFailures)
+	fmt.Fprintf(writer, "taas_rule_rejections_total %d\n", snapshot.RuleRejections)
+	fmt.Fprintf(writer, "taas_panic_stops_total %d\n", snapshot.PanicStops)
+	fmt.Fprintf(writer, "taas_sessions_armed %d\n", armedSessions)
+	regions := make([]string, 0, len(snapshot.PerRegionFailures))
+	for region := range snapshot.PerRegionFailures {
+		regions = append(regions, region)
+	}
+	sort.Strings(regions)
+	for _, region := range regions {
+		failures := snapshot.PerRegionFailures[region]
+		fmt.Fprintf(writer, "taas_region_failures_total{region=%q} %d\n", region, failures)
+	}
 }
 
 func (s *Server) handleLandingPage(writer http.ResponseWriter, request *http.Request) {

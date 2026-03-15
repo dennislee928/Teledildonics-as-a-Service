@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,6 +153,50 @@ func TestAPIRejectsInvalidBridgeTelemetryToken(t *testing.T) {
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", recorder.Code)
+	}
+}
+
+func TestAPIReadyzReportsHealthyStores(t *testing.T) {
+	server := newTestServer(t)
+	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), `"status":"ok"`) {
+		t.Fatalf("expected ok readiness body, got %s", recorder.Body.String())
+	}
+}
+
+func TestAPIMetricsExposeOperationalSnapshot(t *testing.T) {
+	server := newTestServer(t)
+	if _, err := server.service.PublishTelemetry(context.Background(), "session_demo", domain.IngestTelemetryRequest{
+		Sequence:    1,
+		Status:      domain.TelemetryAck,
+		ExecutedAt:  time.Now().UTC(),
+		DeviceState: "command-accepted",
+		LatencyMS:   31,
+	}); err != nil {
+		t.Fatalf("publish telemetry: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "taas_ack_count") {
+		t.Fatalf("expected ack metric in body, got %s", body)
+	}
+	if !strings.Contains(body, "taas_sessions_armed") {
+		t.Fatalf("expected armed session metric in body, got %s", body)
 	}
 }
 

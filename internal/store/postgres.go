@@ -33,6 +33,10 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *PostgresStore) HealthCheck(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *PostgresStore) Migrate() error {
 	statements := []string{
 		`create table if not exists workspaces (

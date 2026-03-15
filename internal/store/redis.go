@@ -15,6 +15,10 @@ type RedisRuntimeStore struct {
 }
 
 func NewRedisRuntimeStore(redisURL string) (*RedisRuntimeStore, error) {
+	return NewRedisRuntimeStoreWithPrefix(redisURL, "taas:")
+}
+
+func NewRedisRuntimeStoreWithPrefix(redisURL, keyPrefix string) (*RedisRuntimeStore, error) {
 	options, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, err
@@ -25,8 +29,16 @@ func NewRedisRuntimeStore(redisURL string) (*RedisRuntimeStore, error) {
 	}
 	return &RedisRuntimeStore{
 		client:    client,
-		keyPrefix: "taas:",
+		keyPrefix: keyPrefix,
 	}, nil
+}
+
+func (s *RedisRuntimeStore) Close() error {
+	return s.client.Close()
+}
+
+func (s *RedisRuntimeStore) HealthCheck(ctx context.Context) error {
+	return s.client.Ping(ctx).Err()
 }
 
 func (s *RedisRuntimeStore) ReserveIdempotency(workspaceID, key string, occurredAt time.Time) error {
