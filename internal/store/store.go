@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -53,6 +54,10 @@ type RuntimeStore interface {
 	ReserveIdempotency(workspaceID, key string, occurredAt time.Time) error
 	LastSessionEvent(sessionID string) (time.Time, bool)
 	AppendSessionEvent(sessionID string, occurredAt time.Time, within time.Duration) int
+}
+
+type HealthChecker interface {
+	HealthCheck(context.Context) error
 }
 
 func HashWorkspaceAPIKey(rawKey string) string {
