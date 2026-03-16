@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/taas-hq/taas/internal/domain"
 )
@@ -18,15 +19,45 @@ type PostgresStore struct {
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
-	db, err := sql.Open("pgx", dsn)
+	connConfig, err := parsePostgresConfig(dsn)
 	if err != nil {
 		return nil, err
 	}
+	db := stdlib.OpenDB(*connConfig)
 	if err := db.PingContext(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	return &PostgresStore{db: db}, nil
+}
+
+func parsePostgresConfig(dsn string) (*pgx.ConnConfig, error) {
+	connConfig, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	if connConfig.RuntimeParams == nil {
+		connConfig.RuntimeParams = map[string]string{}
+	}
+	if _, ok := connConfig.RuntimeParams["application_name"]; !ok {
+		connConfig.RuntimeParams["application_name"] = "taas-control-api"
+	}
+
+	if usesSupabaseTransactionPooler(connConfig) {
+		// Supabase transaction pooler is PgBouncer-backed, so avoid the extended protocol
+		// and statement caching that can break when connections are swapped mid-flight.
+		connConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+		connConfig.StatementCacheCapacity = 0
+		connConfig.DescriptionCacheCapacity = 0
+	}
+
+	return connConfig, nil
+}
+
+func usesSupabaseTransactionPooler(connConfig *pgx.ConnConfig) bool {
+	host := strings.ToLower(connConfig.Host)
+	return strings.Contains(host, "pooler.supabase.com") && connConfig.Port == 6543
 }
 
 func (s *PostgresStore) Close() error {

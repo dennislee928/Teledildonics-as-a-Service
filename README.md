@@ -36,6 +36,15 @@ scripts/run-control-api.sh memory
 scripts/run-control-api.sh stateful
 ```
 
+If you want to use Supabase Postgres through the transaction pooler, export the pooler DSN and run:
+
+```bash
+export POSTGRES_DSN='postgresql://postgres.lpkurejkicykawyiovfo:YOUR_PASSWORD@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require'
+scripts/run-control-api.sh supabase
+```
+
+If your Supabase password contains special URL characters such as `@`, `:`, or `/`, percent-encode it before placing it in the DSN.
+
 5. Build the web packages and apps:
 
 ```bash
@@ -75,6 +84,8 @@ curl -H 'X-Workspace-Api-Key: taas_demo_workspace_key' \
 ```
 
 Bridge-facing transport routes live under `/bridge/v1/*` instead. They use a session grant token derived from the session key and current bridge grant, not a workspace API key. See [`docs/relay-transport.md`](./docs/relay-transport.md) for the transport contract and the current demo-vs-production caveats.
+
+When `POSTGRES_DSN` points at a Supabase transaction-pooler host on port `6543`, the control API automatically switches `pgx` into simple protocol mode to stay compatible with transaction pooling.
 
 The API also serves first-party reference docs directly:
 
